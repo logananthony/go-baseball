@@ -7,7 +7,7 @@ import (
 
 
 // FetchPitcherFrequencies queries and prints pitch data for a pitcher ID
-func FilterPitcherCountPitchFreq(in []models.PitcherCountPitchFreq, balls, strikes int) string  {
+func SimulatePitchType(in []models.PitcherCountPitchFreq, balls, strikes int) string  {
 
     pitch_types := []string{}
     for _, each := range in {
