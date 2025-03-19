@@ -9,18 +9,7 @@ import (
 	"github.com/logananthony/go-baseball/pkg/models"
 )
 
-type pitcherCountPitchFreq struct { 
-  GAME_YEAR int
-  PLAYER_NAME string
-  PITCHER int
-  STAND string
-  PITCH_TYPE string
-  BALLS int
-  STRIKES int
-  COUNT int 
-  TOTAL_COUNT int
-  FREQUENCY float64
-}
+
 
 // FetchPitcherFrequencies queries and prints pitch data for a pitcher ID
 func FetchPitcherFrequencies(db *sql.DB, pitcherID int, stand string) []models.PitcherCountPitchFreq {
