@@ -2,34 +2,57 @@ package fetcher
 
 import (
 	"database/sql"
-	"fmt"
+	//"fmt"
 	"log"
 
 	_ "github.com/lib/pq"
-	//"github.com/logananthony/go-baseball/pkg/config"
+	"github.com/logananthony/go-baseball/pkg/models"
 )
 
+type pitcherCountPitchFreq struct { 
+  GAME_YEAR int
+  PLAYER_NAME string
+  PITCHER int
+  STAND string
+  PITCH_TYPE string
+  BALLS int
+  STRIKES int
+  COUNT int 
+  TOTAL_COUNT int
+  FREQUENCY float64
+}
+
 // FetchPitcherFrequencies queries and prints pitch data for a pitcher ID
-func FetchPitcherFrequencies(db *sql.DB, pitcherID int, stand string) {
-	query := `SELECT stand, pitch_type, balls, strikes, count, frequency FROM pitcher_count_pitch_freq WHERE pitcher = $1 AND stand = $2`
+func FetchPitcherFrequencies(db *sql.DB, pitcherID int, stand string) []models.PitcherCountPitchFreq {
+    query := `SELECT stand, pitch_type, balls, strikes, count, frequency FROM pitcher_count_pitch_freq WHERE pitcher = $1 AND stand = $2`
 
-	rows, err := db.Query(query, pitcherID, stand)
-	if err != nil {
-		log.Fatal("Query error:", err)
-	}
-	defer rows.Close()
+    rows, err := db.Query(query, pitcherID, stand)
+    if err != nil {
+        log.Fatal("Query error:", err)
+    }
+    defer rows.Close()
 
-	fmt.Println("Results for pitcher:", pitcherID)
-	for rows.Next() {
-		var standType, pitchType string
-		var balls, strikes, count int
-		var frequency float64
+    var results []models.PitcherCountPitchFreq
 
-		if err := rows.Scan(&standType, &pitchType, &balls, &strikes, &count, &frequency); err != nil {
-			log.Fatal(err)
-		}
+    for rows.Next() {
+        var freq models.PitcherCountPitchFreq
+        freq.PITCHER = pitcherID
+        freq.STAND = stand
+        err := rows.Scan(
+            &freq.STAND,
+            &freq.PITCH_TYPE,
+            &freq.BALLS,
+            &freq.STRIKES,
+            &freq.COUNT,
+            &freq.FREQUENCY,
+        )
+        if err != nil {
+            log.Fatal(err)
+        }
 
-		fmt.Printf("Pitch: %s | Balls: %d | Strikes: %d | Count: %d | Freq: %.2f\n", pitchType, balls, strikes, count, frequency)
-	}
+        results = append(results, freq)
+    }
+
+    return results
 }
 
