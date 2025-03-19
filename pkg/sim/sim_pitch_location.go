@@ -12,7 +12,7 @@ import (
 )
 
 // FetchPitcherFrequencies queries and prints pitch data for a pitcher ID
-func SimulatePitchLocation(in []models.PitcherCovarianceMean, pitch_type string, stand string, balls, strikes int) []float64  {
+func SimulatePitchLocationVelo(in []models.PitcherCovarianceMean, pitch_type string, stand string, balls, strikes int) []float64  {
 
     var count_state string
     if balls == strikes {
