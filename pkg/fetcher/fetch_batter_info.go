@@ -3,7 +3,7 @@ package fetcher
 
 import (
 	"database/sql"
-	"fmt"
+	//"fmt"
 	"log"
 
 	_ "github.com/lib/pq"
@@ -28,7 +28,7 @@ func FetchBatterInfo(db *sql.DB, batterID int, game_year int) (Bats string) {
 			log.Fatal(err)
 		}
 
-		fmt.Printf("Bats: %s", Bats)
+		//fmt.Printf("Bats: %s", Bats)
 	}
   
   return Bats
