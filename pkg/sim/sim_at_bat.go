@@ -21,6 +21,8 @@ func SimulateAtBat(in []models.AtBatData ) []models.AtBatResult {
 
     batterStands := fetcher.FetchBatterInfo(db, in[0].BatterId, in[0].GameYear)
     pitcherThrows := fetcher.FetchPitcherInfo(db, in[0].PitcherId, in[0].GameYear)
+    
+    batterSwingProbs, _ := fetcher.FetchBatterSwingPercentage(db, in[0].BatterId, in[0].GameYear)
 
     if batterStands == "B" && pitcherThrows == "R" {
       batterStands = "L"
@@ -35,6 +37,7 @@ func SimulateAtBat(in []models.AtBatData ) []models.AtBatResult {
     strike_sequence := []int {}
     ball_sequence := []int {}
     is_strike_sequence := []bool {}
+    is_swing_sequence := []bool {}
 
 
     for {
@@ -46,6 +49,7 @@ func SimulateAtBat(in []models.AtBatData ) []models.AtBatResult {
       pitch_covariance := fetcher.FetchPitcherCovarianceMean(db, int64(in[0].PitcherId), int64(in[0].GameYear))
       location_velo_result := SimulatePitchLocationVelo(pitch_covariance, pitch_type_result, batterStands, balls, strikes)
       is_strike_result := utils.IsPitchStrike(location_velo_result[0], location_velo_result[1])
+      is_swing_result := SimulateSwingDecision(batterSwingProbs, batterStands, pitcherThrows, pitch_type_result, location_velo_result[0], location_velo_result[1])
 
 
       pitch_type_sequence = append(pitch_type_sequence, pitch_type_result)
@@ -55,8 +59,9 @@ func SimulateAtBat(in []models.AtBatData ) []models.AtBatResult {
       strike_sequence = append(strike_sequence, strikes)
       ball_sequence = append(ball_sequence, balls)
       is_strike_sequence = append(is_strike_sequence, is_strike_result)
+      is_swing_sequence = append(is_swing_sequence, is_swing_result)
 
-      if is_strike_result {
+      if is_strike_result || is_swing_result {
          strikes += 1
       } else {
          balls += 1
@@ -75,6 +80,7 @@ func SimulateAtBat(in []models.AtBatData ) []models.AtBatResult {
           PlateZ: plate_z_sequence, 
           Velocity: velocity_sequence,
           IsStrike: is_strike_sequence,
+          IsSwing: is_swing_sequence,
 
         }}
 

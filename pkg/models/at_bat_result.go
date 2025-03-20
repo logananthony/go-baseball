@@ -13,6 +13,7 @@ type AtBatResult struct {
   PlateZ []float64
   Velocity []float64
   IsStrike []bool
+  IsSwing []bool
 }
 
 
