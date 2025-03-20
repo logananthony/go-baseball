@@ -14,6 +14,7 @@ type AtBatResult struct {
   Velocity []float64
   IsStrike []bool
   IsSwing []bool
+  IsContact []string
 }
 
 
