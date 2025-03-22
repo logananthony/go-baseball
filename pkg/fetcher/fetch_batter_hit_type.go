@@ -10,10 +10,24 @@ import (
 // FetchBatterHitType queries batter hit type probabilities from batter_hit_type table
 func FetchBatterHitType(db *sql.DB, batterId, gameYear int) ([]models.BatterHitType, error) {
 	query := `
-		SELECT game_year, batter, stand, p_throws, zone, pitch_type, velocity_bucket,
-		       double, home_run, out, single, triple, n, level
-		FROM batter_hit_type
-		WHERE batter = $1 AND game_year = $2;
+SELECT 
+    game_year, 
+    batter, 
+    COALESCE(stand, 'NA') as stand, 
+    COALESCE(p_throws, 'NA') as p_throws, 
+    COALESCE(zone, -1::BIGINT) as zone, 
+    COALESCE(pitch_type, 'NA') as pitch_type, 
+    COALESCE(velocity_bucket, 'NA') as velocity_bucket,
+    COALESCE(double, 0.0) as double,
+    COALESCE(home_run, 0.0) as home_run,
+    COALESCE(out, 0.0) as out,
+    COALESCE(single, 0.0) as single,
+    COALESCE(triple, 0.0) as triple,
+    COALESCE(n, 0) as n,
+    COALESCE(level, '-1') as level
+FROM batter_hit_type
+WHERE batter = $1 AND game_year = $2;
+
 	`
 
 	rows, err := db.Query(query, batterId, gameYear)
@@ -48,7 +62,8 @@ func FetchBatterHitType(db *sql.DB, batterId, gameYear int) ([]models.BatterHitT
 		results = append(results, rec)
 	}
 
+	//fmt.Printf("Rows fetched: %d\n", len(results))
+
 	return results, nil
 }
-
 
