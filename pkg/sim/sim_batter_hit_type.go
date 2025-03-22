@@ -1,59 +1,46 @@
 package sim
 
 import (
+	//"fmt"
 	"github.com/logananthony/go-baseball/pkg/models"
-  "github.com/logananthony/go-baseball/pkg/utils"
-)     
+	"github.com/logananthony/go-baseball/pkg/utils"
+)
 
-
-// FetchPitcherFrequencies queries and prints pitch data for a pitcher ID
+// SimulateBatterHitType safely handles NULLable fields when matching
 func SimulateBatterHitType(in []models.BatterHitType, stand, pThrows, pitchType string, plateX, plateZ, velocity float64) string {
-    zone_num := utils.GetPitchZone(plateX, plateZ)
-    velo_bucket := utils.GetVelocityBucket(velocity)
+	zone_num := utils.GetPitchZone(plateX, plateZ)
+	velo_bucket := utils.GetVelocityBucket(velocity)
 
-    hit_prob := []map[string]float64{}
-    hit_weights := []int{}
+	var selected *models.BatterHitType
 
-    for _, each := range in {
-        if each.Stand == stand || each.PThrows == pThrows || each.PitchType == pitchType || each.Zone == zone_num || each.VelocityBucket == velo_bucket {
-            hit_prob = append(hit_prob, map[string]float64{
-                "single":   each.Single,
-                "double":   each.Double,
-                "triple":   each.Triple,
-                "home_run": each.HomeRun,
-                "out":      each.Out,
-            })
-            hit_weights = append(hit_weights, each.N)
-        }
+  for _, each := range in {
+    if each.Stand == stand || 
+       each.PThrows == pThrows || 
+       each.PitchType == pitchType || 
+       each.Zone == zone_num || 
+       each.VelocityBucket == velo_bucket {
+      selected = &each
+      break
     }
+  }
 
-    // Aggregate into final smoothed probabilities
-    smoothed := map[string]float64{"single": 0, "double": 0, "triple": 0, "home_run": 0, "out": 0}
-    total_weight := 0
 
-    for i, probs := range hit_prob {
-        n := hit_weights[i]
-        total_weight += n
-        for k, v := range probs {
-            smoothed[k] += v * float64(n)
-        }
-    }
+	if selected == nil {
+		return "out"
+	}
 
-    // Normalize
-    for k := range smoothed {
-        smoothed[k] /= float64(total_weight)
-    }
+	// Directly use the raw probabilities from the selected match
+	outcomes := []string{"single", "double", "triple", "home_run", "out"}
 
-    outcomes := []string{"single", "double", "triple", "home_run", "out"}
-    probs := []float64{
-        smoothed["single"],
-        smoothed["double"],
-        smoothed["triple"],
-        smoothed["home_run"],
-        smoothed["out"],
-    }
+  probs := []float64{
+	selected.Single,
+	selected.Double,
+	selected.Triple,
+	selected.HomeRun,
+	selected.Out,
+}
 
-    // Sample from smoothed
-    return utils.WeightedSample(outcomes, probs) 
+	//fmt.Println("Raw probabilities:", probs)
+	return utils.WeightedSample(outcomes, probs)
 }
 

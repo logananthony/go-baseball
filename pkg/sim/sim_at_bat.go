@@ -6,6 +6,7 @@ import (
  "github.com/logananthony/go-baseball/pkg/fetcher"
  "github.com/logananthony/go-baseball/pkg/config"
  "github.com/logananthony/go-baseball/pkg/utils"
+ "fmt"
 
 )
 
@@ -24,7 +25,12 @@ func SimulateAtBat(in []models.AtBatData ) []models.AtBatResult {
     
     batterSwingProbs, _ := fetcher.FetchBatterSwingPercentage(db, in[0].BatterId, in[0].GameYear)
     batterContactProbs, _ := fetcher.FetchBatterContactPercentage(db, in[0].BatterId, in[0].GameYear)
-    batterHitProbs, _ := fetcher.FetchBatterHitType(db, in[0].BatterId, in[0].GameYear)
+    //batterHitProbs, _ := fetcher.FetchBatterHitType(db, in[0].BatterId, in[0].GameYear)
+
+batterHitProbs, err := fetcher.FetchBatterHitType(db, 660688, 2024)
+if err != nil {
+    fmt.Println("Fetcher error:", err)
+}
 
 
     if batterStands == "B" && pitcherThrows == "R" {
@@ -56,124 +62,73 @@ func SimulateAtBat(in []models.AtBatData ) []models.AtBatResult {
       is_strike_result := utils.IsPitchStrike(location_velo_result[0], location_velo_result[1])
       is_swing_result := SimulateSwingDecision(batterSwingProbs, batterStands, pitcherThrows, pitch_type_result, location_velo_result[0], location_velo_result[1])
       is_contact_result := SimulateContactPercentage(batterContactProbs, batterStands, pitcherThrows, pitch_type_result, location_velo_result[0], location_velo_result[1])
+      //fmt.Println("stand:", batterStands, "p_throws:", pitcherThrows, "pitch_type:")
+
       hit_type_result := SimulateBatterHitType(batterHitProbs, batterStands, pitcherThrows, pitch_type_result, location_velo_result[0], location_velo_result[1], 
                                                                                                                                   location_velo_result[2])
 
 
-//      pitch_type_sequence = append(pitch_type_sequence, pitch_type_result)
-//      plate_x_sequence = append(plate_x_sequence, location_velo_result[0])
-//      plate_z_sequence = append(plate_z_sequence, location_velo_result[1])
-//      velocity_sequence = append(velocity_sequence, location_velo_result[2])
-//      is_strike_sequence = append(is_strike_sequence, is_strike_result)
-//      is_swing_sequence = append(is_swing_sequence, is_swing_result)
+      pitch_type_sequence = append(pitch_type_sequence, pitch_type_result)
+      plate_x_sequence = append(plate_x_sequence, location_velo_result[0])
+      plate_z_sequence = append(plate_z_sequence, location_velo_result[1])
+      velocity_sequence = append(velocity_sequence, location_velo_result[2])
+      is_strike_sequence = append(is_strike_sequence, is_strike_result)
+      is_swing_sequence = append(is_swing_sequence, is_swing_result)
+      strike_sequence = append(strike_sequence, strikes)
+      ball_sequence = append(ball_sequence, balls)
 
       if is_swing_result {
           // Batter swung
+          is_contact_sequence = append(is_contact_sequence, is_contact_result)
+          
           switch is_contact_result {
           case "swinging_strike":
               strikes += 1
-              pitch_type_sequence = append(pitch_type_sequence, pitch_type_result)
-              plate_x_sequence = append(plate_x_sequence, location_velo_result[0])
-              plate_z_sequence = append(plate_z_sequence, location_velo_result[1])
-              velocity_sequence = append(velocity_sequence, location_velo_result[2])
-              is_strike_sequence = append(is_strike_sequence, is_strike_result)
-              is_swing_sequence = append(is_swing_sequence, is_swing_result)
           case "foul":
               if strikes < 2 {
                   strikes += 1 // foul with less than 2 strikes
-                  pitch_type_sequence = append(pitch_type_sequence, pitch_type_result)
-                  plate_x_sequence = append(plate_x_sequence, location_velo_result[0])
-                  plate_z_sequence = append(plate_z_sequence, location_velo_result[1])
-                  velocity_sequence = append(velocity_sequence, location_velo_result[2])
-                  is_strike_sequence = append(is_strike_sequence, is_strike_result)
-                  is_swing_sequence = append(is_swing_sequence, is_swing_result)
-
               }
           case "ball_in_play":
-                //is_contact_sequence = append(is_contact_sequence, is_contact_result)
-                //hit_type_sequence = append(hit_type_sequence, hit_type_result)
-//                pitch_type_sequence = append(pitch_type_sequence, pitch_type_result)
-//                plate_x_sequence = append(plate_x_sequence, location_velo_result[0])
-//                plate_z_sequence = append(plate_z_sequence, location_velo_result[1])
-//                velocity_sequence = append(velocity_sequence, location_velo_result[2])
-//                is_strike_sequence = append(is_strike_sequence, is_strike_result)
-                //is_swing_sequence = append(is_swing_sequence, is_swing_result)
+                hit_type_sequence = append(hit_type_sequence, hit_type_result)
+                return []models.AtBatResult{{
+                  GameYear: in[0].GameYear,
+                  PitcherId: in[0].PitcherId,
+                  BatterId: in[0].BatterId,
+                  Strikes: strike_sequence, 
+                  Balls: ball_sequence, 
+                  PitchType: pitch_type_sequence,
+                  PlateX: plate_x_sequence,
+                  PlateZ: plate_z_sequence, 
+                  Velocity: velocity_sequence,
+                  IsStrike: is_strike_sequence,
+                  IsSwing: is_swing_sequence,
+                  IsContact: is_contact_sequence,
+                  HitType: hit_type_sequence,
+
+                }}
+                
 
 
 
               // Let it resolve in your end condition (put in play)
           }
-//          is_contact_sequence = append(is_contact_sequence, is_contact_result)
-//          pitch_type_sequence = append(pitch_type_sequence, pitch_type_result)
-//          plate_x_sequence = append(plate_x_sequence, location_velo_result[0])
-//          plate_z_sequence = append(plate_z_sequence, location_velo_result[1])
-//          velocity_sequence = append(velocity_sequence, location_velo_result[2])
-//          is_strike_sequence = append(is_strike_sequence, is_strike_result)
-//          is_swing_sequence = append(is_swing_sequence, is_swing_result)
-
-
-
 
       } else {
           // Batter didn't swing
           if is_strike_result {
               strikes += 1 // called strike
-              pitch_type_sequence = append(pitch_type_sequence, pitch_type_result)
-              plate_x_sequence = append(plate_x_sequence, location_velo_result[0])
-              plate_z_sequence = append(plate_z_sequence, location_velo_result[1])
-              velocity_sequence = append(velocity_sequence, location_velo_result[2])
-              is_strike_sequence = append(is_strike_sequence, is_strike_result)
-              is_swing_sequence = append(is_swing_sequence, is_swing_result)
-
           } else {
               balls += 1 // ball taken
-              pitch_type_sequence = append(pitch_type_sequence, pitch_type_result)
-              plate_x_sequence = append(plate_x_sequence, location_velo_result[0])
-              plate_z_sequence = append(plate_z_sequence, location_velo_result[1])
-              velocity_sequence = append(velocity_sequence, location_velo_result[2])
-              is_strike_sequence = append(is_strike_sequence, is_strike_result)
-              is_swing_sequence = append(is_swing_sequence, is_swing_result)
-
           }
-          is_contact_sequence = append(is_contact_sequence, "")
-          hit_type_sequence = append(hit_type_sequence, "")
-//          pitch_type_sequence = append(pitch_type_sequence, pitch_type_result)
-//          plate_x_sequence = append(plate_x_sequence, location_velo_result[0])
-//          plate_z_sequence = append(plate_z_sequence, location_velo_result[1])
-//          velocity_sequence = append(velocity_sequence, location_velo_result[2])
-//          is_strike_sequence = append(is_strike_sequence, is_strike_result)
-//          is_swing_sequence = append(is_swing_sequence, is_swing_result)
-
       }
-//      strike_sequence = append(strike_sequence, strikes)
-//      ball_sequence = append(ball_sequence, balls)
-//      pitch_type_sequence = append(pitch_type_sequence, pitch_type_result)
-//      plate_x_sequence = append(plate_x_sequence, location_velo_result[0])
-//      plate_z_sequence = append(plate_z_sequence, location_velo_result[1])
-//      velocity_sequence = append(velocity_sequence, location_velo_result[2])
-//      is_strike_sequence = append(is_strike_sequence, is_strike_result)
-//      is_swing_sequence = append(is_swing_sequence, is_swing_result)
-        strike_sequence = append(strike_sequence, strikes)
-        ball_sequence = append(ball_sequence, balls)
 
-      if strikes == 3 || balls == 4 || is_contact_result == "ball_in_play" {
+      if strikes == 3 || balls == 4 {
 
       switch {
 
       case strikes == 3:
-//          strike_sequence = append(strike_sequence, strikes)
-//          ball_sequence = append(ball_sequence, balls)
-          is_contact_sequence = append(is_contact_sequence, "")
-          hit_type_sequence = append(hit_type_sequence, "strikeout")
-//              pitch_type_sequence = append(pitch_type_sequence, pitch_type_result)
-//              plate_x_sequence = append(plate_x_sequence, location_velo_result[0])
-//              plate_z_sequence = append(plate_z_sequence, location_velo_result[1])
-//              velocity_sequence = append(velocity_sequence, location_velo_result[2])
-//              is_strike_sequence = append(is_strike_sequence, is_strike_result)
-//              is_swing_sequence = append(is_swing_sequence, is_swing_result)
 
-
-
+            hit_type_sequence = append(hit_type_sequence, "strikeout")
             return []models.AtBatResult{{
               GameYear: in[0].GameYear,
               PitcherId: in[0].PitcherId,
@@ -191,18 +146,7 @@ func SimulateAtBat(in []models.AtBatData ) []models.AtBatResult {
 
             }}
       case balls == 4:
-//          strike_sequence = append(strike_sequence, strikes)
-//          ball_sequence = append(ball_sequence, balls)
-          is_contact_sequence = append(is_contact_sequence, "no_swing")
           hit_type_sequence = append(hit_type_sequence, "walk")
-//              pitch_type_sequence = append(pitch_type_sequence, pitch_type_result)
-//              plate_x_sequence = append(plate_x_sequence, location_velo_result[0])
-//              plate_z_sequence = append(plate_z_sequence, location_velo_result[1])
-//              velocity_sequence = append(velocity_sequence, location_velo_result[2])
-//              is_strike_sequence = append(is_strike_sequence, is_strike_result)
-//              is_swing_sequence = append(is_swing_sequence, is_swing_result)
-          
-
             return []models.AtBatResult{{
               GameYear: in[0].GameYear,
               PitcherId: in[0].PitcherId,
@@ -220,70 +164,10 @@ func SimulateAtBat(in []models.AtBatData ) []models.AtBatResult {
 
           }}
 
-      case is_contact_result == "ball_in_play":
-          strike_sequence = append(strike_sequence, strikes)
-          ball_sequence = append(ball_sequence, balls)
-          is_contact_sequence = append(is_contact_sequence, is_contact_result)
-          hit_type_sequence = append(hit_type_sequence, hit_type_result)
-              pitch_type_sequence = append(pitch_type_sequence, pitch_type_result)
-              plate_x_sequence = append(plate_x_sequence, location_velo_result[0])
-              plate_z_sequence = append(plate_z_sequence, location_velo_result[1])
-              velocity_sequence = append(velocity_sequence, location_velo_result[2])
-              is_strike_sequence = append(is_strike_sequence, is_strike_result)
-              is_swing_sequence = append(is_swing_sequence, is_swing_result)
-
-
-          
-
-            return []models.AtBatResult{{
-              GameYear: in[0].GameYear,
-              PitcherId: in[0].PitcherId,
-              BatterId: in[0].BatterId,
-              Strikes: strike_sequence, 
-              Balls: ball_sequence, 
-              PitchType: pitch_type_sequence,
-              PlateX: plate_x_sequence,
-              PlateZ: plate_z_sequence, 
-              Velocity: velocity_sequence,
-              IsStrike: is_strike_sequence,
-              IsSwing: is_swing_sequence,
-              IsContact: is_contact_sequence,
-              HitType: hit_type_sequence,
-
-            }}
-      
       }
 
     }
 
-
-//      if strikes == 3 || balls == 4 || is_contact_result == "ball_in_play" {
-//
-//      strike_sequence = append(strike_sequence, strikes)
-//      ball_sequence = append(ball_sequence, balls)
-//      is_contact_sequence = append(is_contact_sequence, is_contact_result)
-//      hit_type_sequence = append(hit_type_sequence, hit_type_result)
-//
-//      
-//
-//        return []models.AtBatResult{{
-//          GameYear: in[0].GameYear,
-//          PitcherId: in[0].PitcherId,
-//          BatterId: in[0].BatterId,
-//          Strikes: strike_sequence, 
-//          Balls: ball_sequence, 
-//          PitchType: pitch_type_sequence,
-//          PlateX: plate_x_sequence,
-//          PlateZ: plate_z_sequence, 
-//          Velocity: velocity_sequence,
-//          IsStrike: is_strike_sequence,
-//          IsSwing: is_swing_sequence,
-//          IsContact: is_contact_sequence,
-//          HitType: hit_type_sequence,
-//
-//        }}
-//
-//      }
   }  
 
 }
