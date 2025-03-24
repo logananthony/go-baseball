@@ -2,7 +2,7 @@ package sim
 
 import (
  //"github.com/logananthony/go-baseball/pkg/sim"
- "github.com/logananthony/go-baseball/pkg/models"
+"github.com/logananthony/go-baseball/pkg/models"
  "github.com/logananthony/go-baseball/pkg/fetcher"
  "github.com/logananthony/go-baseball/pkg/config"
  "github.com/logananthony/go-baseball/pkg/utils"
@@ -25,12 +25,11 @@ func SimulateAtBat(in []models.AtBatData ) []models.AtBatResult {
     
     batterSwingProbs, _ := fetcher.FetchBatterSwingPercentage(db, in[0].BatterId, in[0].GameYear)
     batterContactProbs, _ := fetcher.FetchBatterContactPercentage(db, in[0].BatterId, in[0].GameYear)
-    //batterHitProbs, _ := fetcher.FetchBatterHitType(db, in[0].BatterId, in[0].GameYear)
 
-batterHitProbs, err := fetcher.FetchBatterHitType(db, 660688, 2024)
-if err != nil {
-    fmt.Println("Fetcher error:", err)
-}
+    batterHitProbs, err := fetcher.FetchBatterHitType(db, 660688, 2024)
+    if err != nil {
+        fmt.Println("Fetcher error:", err)
+    }
 
 
     if batterStands == "B" && pitcherThrows == "R" {

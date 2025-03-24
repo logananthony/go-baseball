@@ -19,6 +19,10 @@ func SimulateSwingDecision(in []models.BatterSwingPercentage, stand, pThrows, pi
 
     }
 
+   if len(swing_prob) == 0 {
+    // fallback logic (e.g., assume no swing if no data) -- FIX THIS TO FALLBACK TO LEAGUE AVERAGE 
+    return false
+   }
     sample := utils.IsSuccess(&swing_prob[0])
 
   return sample
