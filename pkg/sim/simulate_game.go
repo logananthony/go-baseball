@@ -39,23 +39,29 @@ func SimulateGame(in []models.GameData) int {
 
         homePitcher := in[0].HomeStartingPitcher
         awayPitcher := in[0].AwayStartingPitcher
+
+
         inning := 1
+        awayScore := 0
+        homeScore := 0
+        awayBatterNumber := 0
+        homeBatterNumber := 0
 
 
         for inning < 9 {
 
-              fmt.Println("Inning: ", inning)
-
               topOuts := 0
               botOuts := 0
-              awayBatterNumber := 0
-              homeBatterNumber := 0
+              awayBaseState := []bool {false, false, false, false}
+              homeBaseState := []bool {false, false, false, false}
 
-
+              fmt.Println("Top Inning: ", inning)
 
               for topOuts < 3 {
 
-                  awayBatter := awayLineup[awayBatterNumber % 9]
+
+                  awayBatterNumber = awayBatterNumber % 9
+                  awayBatter := awayLineup[awayBatterNumber]
                   awayPaResult := SimulateAtBat([]models.AtBatData{
                     {
                         GameYear: 2024,
@@ -66,10 +72,57 @@ func SimulateGame(in []models.GameData) int {
                     },
                   })
 
-//                  if awayBatterNumber == 8 {
-//                      awayBatterNumber = 0
-//                  }
-//                  
+                 if len(awayPaResult) > 0 && len(awayPaResult[0].HitType) > 0 {
+                      switch awayPaResult[0].HitType[0] {
+                      case "walk":
+                          if awayBaseState[0] || (awayBaseState[0] && awayBaseState[2]) {
+                                  awayBaseState[0] = awayBaseState[1]
+                          } else if awayBaseState[0] && awayBaseState[1] {
+                                  awayBaseState[0] = awayBaseState[1]
+                                  awayBaseState[1] = awayBaseState[2]
+                          } else if awayBaseState[0] && awayBaseState[1] && awayBaseState[2] {
+                                  awayBaseState[0] = awayBaseState[1]
+                                  awayBaseState[1] = awayBaseState[2]
+                                  awayBaseState[2] = awayBaseState[3]
+                          } else if !awayBaseState[0] {
+                                  awayBaseState[0] = true      
+                          }
+                      case "single":
+                          awayBaseState[3] = awayBaseState[2] 
+                          awayBaseState[2] = awayBaseState[1]
+                          awayBaseState[1] = awayBaseState[0] 
+                          awayBaseState[0] = true         
+
+                      case "double":
+                          awayBaseState[3] = awayBaseState[1] 
+                          awayBaseState[2] = awayBaseState[0] 
+                          awayBaseState[1] = true
+                          awayBaseState[0] = false
+
+                      case "triple":
+                          awayBaseState[3] = awayBaseState[0] || awayBaseState[1] || awayBaseState[2] 
+                          awayBaseState[2] = true
+                          awayBaseState[1] = false
+                          awayBaseState[0] = false
+
+                      case "home_run":
+                          runs := 1 
+                          for i := 0; i <= 2; i++ {
+                              if awayBaseState[i] {
+                                  runs++
+                                  awayBaseState[i] = false 
+                              }
+                          }
+                          awayScore += runs
+                      }
+
+                      if awayBaseState[3] {
+                          awayScore++
+                          awayBaseState[3] = false
+
+                      }
+                  }
+
                   awayBatterNumber++
 
                   if len(awayPaResult) > 0 && len(awayPaResult[0].HitType) > 0 {
@@ -77,14 +130,20 @@ func SimulateGame(in []models.GameData) int {
                           topOuts++
                     }
                   }
-                  fmt.Println("Top Inning: ", awayBatterNumber, awayPaResult[0].HitType[0])
+
+                  fmt.Println("Batter #: ", awayBatterNumber, " | Event: ",  awayPaResult[0].HitType[0], " | Base State: ", 
+                              awayBaseState[0], awayBaseState[1], awayBaseState[2],   " | Score: ", awayScore, "-", homeScore)
 
               }
 
 
+              fmt.Println("Bottom Inning: ", inning)
+
+
               for botOuts < 3 {
 
-                  homeBatter := homeLineup[homeBatterNumber % 9]
+                  homeBatterNumber = homeBatterNumber % 9
+                  homeBatter := homeLineup[homeBatterNumber]
                   homePaResult := SimulateAtBat([]models.AtBatData{
                     {
                         GameYear: 2024,
@@ -95,10 +154,55 @@ func SimulateGame(in []models.GameData) int {
                     },
                   })
 
-//                  if homeBatterNumber == 8 {
-//                      homeBatterNumber = 0
-//                  }
-//                  
+                 if len(homePaResult) > 0 && len(homePaResult[0].HitType) > 0 {
+                      switch homePaResult[0].HitType[0] {
+                      case "walk":
+                          if homeBaseState[0] || (homeBaseState[0] && homeBaseState[2]) {
+                                  homeBaseState[0] = homeBaseState[1]
+                          } else if homeBaseState[0] && homeBaseState[1] {
+                                  homeBaseState[0] = homeBaseState[1]
+                                  homeBaseState[1] = homeBaseState[2]
+                          } else if homeBaseState[0] && homeBaseState[1] && homeBaseState[2] {
+                                  homeBaseState[0] = homeBaseState[1]
+                                  homeBaseState[1] = homeBaseState[2]
+                                  homeBaseState[2] = homeBaseState[3]
+                          } else if !homeBaseState[0] {
+                                  homeBaseState[0] = true      
+                          }
+                      case "single":
+                          homeBaseState[3] = homeBaseState[2] 
+                          homeBaseState[2] = homeBaseState[1]
+                          homeBaseState[1] = homeBaseState[0] 
+                          homeBaseState[0] = true      
+                      case "double":
+                          homeBaseState[3] = homeBaseState[1] 
+                          homeBaseState[2] = homeBaseState[0] 
+                          homeBaseState[1] = true
+                          homeBaseState[0] = false
+                      case "triple":
+                          homeBaseState[3] = homeBaseState[0] || homeBaseState[1] || homeBaseState[2] 
+                          homeBaseState[2] = true
+                          homeBaseState[1] = false
+                          homeBaseState[0] = false
+                      case "home_run":
+                          runs := 1 
+                          for i := 0; i <= 2; i++ {
+                              if homeBaseState[i] {
+                                  runs++
+                                  homeBaseState[i] = false 
+                              }
+                          }
+                          homeScore += runs
+                      }
+
+
+                      if homeBaseState[3] {
+                          homeScore++
+                          homeBaseState[3] = false 
+                      }
+                  }
+
+                
                   homeBatterNumber++
                   
                   if len(homePaResult) > 0 && len(homePaResult[0].HitType) > 0 {
@@ -106,8 +210,9 @@ func SimulateGame(in []models.GameData) int {
                           botOuts++
                     }
                   }
-                  
-                  fmt.Println("Bottom Inning: ", homeBatterNumber, homePaResult[0].HitType[0])
+
+                  fmt.Println("Batter #: ", homeBatterNumber, " | Event: ",  homePaResult[0].HitType[0], " | Base State: ", 
+                              homeBaseState[0], homeBaseState[1], homeBaseState[2],   " | Score: ", awayScore, "-", homeScore)
 
               }
 
