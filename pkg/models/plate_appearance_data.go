@@ -1,7 +1,7 @@
 package models
 
 
-type AtBatData struct { 
+type PlateAppearanceData struct { 
   GameYear int
   PitcherId int
   BatterId int

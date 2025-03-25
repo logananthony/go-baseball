@@ -9,7 +9,7 @@ import(
   
 )
 
-func SimulateGame(in []models.GameData) int {
+func SimulateGame(in []models.GameData) []models.PlateAppearanceResult {
 
  
         homeLineup := []int{
@@ -48,7 +48,15 @@ func SimulateGame(in []models.GameData) int {
         homeBatterNumber := 0
 
 
-        for inning < 9 {
+//  awayScoreSequence := []int {}
+//  homeScoreSequence := []int {}
+//  inningSequence := [] int {}
+//  inningTopBotSequence := [] string {}
+//  outSequence := 
+//  
+
+        var plateAppRes []models.PlateAppearanceResult
+        for inning < 2 {
 
               topOuts := 0
               botOuts := 0
@@ -62,7 +70,7 @@ func SimulateGame(in []models.GameData) int {
 
                   awayBatterNumber = awayBatterNumber % 9
                   awayBatter := awayLineup[awayBatterNumber]
-                  awayPaResult := SimulateAtBat([]models.AtBatData{
+                  awayPaResult := SimulateAtBat([]models.PlateAppearanceData{
                     {
                         GameYear: 2024,
                         PitcherId: homePitcher,
@@ -71,6 +79,7 @@ func SimulateGame(in []models.GameData) int {
                         Balls: 0,
                     },
                   })
+                  plateAppRes = append(plateAppRes, awayPaResult...)
 
                  if len(awayPaResult) > 0 && len(awayPaResult[0].EventType) > 0 {
                       switch awayPaResult[0].EventType[0] {
@@ -144,7 +153,7 @@ func SimulateGame(in []models.GameData) int {
 
                   homeBatterNumber = homeBatterNumber % 9
                   homeBatter := homeLineup[homeBatterNumber]
-                  homePaResult := SimulateAtBat([]models.AtBatData{
+                  homePaResult := SimulateAtBat([]models.PlateAppearanceData{
                     {
                         GameYear: 2024,
                         PitcherId: awayPitcher,
@@ -220,7 +229,7 @@ func SimulateGame(in []models.GameData) int {
 
 
       }
-        return inning
+        return plateAppRes
 
 
 }

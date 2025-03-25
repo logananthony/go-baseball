@@ -6,8 +6,8 @@ import (
     "github.com/logananthony/go-baseball/pkg/sim"
     //"github.com/logananthony/go-baseball/pkg/fetcher"
     //"github.com/logananthony/go-baseball/pkg/config"
-    //"github.com/davecgh/go-spew/spew"
-    "fmt"
+    "github.com/davecgh/go-spew/spew"
+    //"fmt"
     //"encoding/json"
 )
 
@@ -60,8 +60,9 @@ func main() {
 
 
 
-    fmt.Println(game_result)
+    //fmt.Println(game_result)
 
+      spew.Dump(game_result)
 
 
   }
