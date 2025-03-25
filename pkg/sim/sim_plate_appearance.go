@@ -10,7 +10,7 @@ import (
 
 )
 
-func SimulateAtBat(in []models.AtBatData ) []models.AtBatResult {
+func SimulateAtBat(in []models.PlateAppearanceData) []models.PlateAppearanceResult {
 
     db := config.ConnectDB()
     defer db.Close()
@@ -52,7 +52,7 @@ func SimulateAtBat(in []models.AtBatData ) []models.AtBatResult {
 
     for {
     
-      pitch_count += 1
+  pitch_count += 1
       
       pitcher_freqs := fetcher.FetchPitcherFrequencies(db, in[0].PitcherId, batterStands)
       pitch_type_result := SimulatePitchType(pitcher_freqs, balls, strikes)
@@ -89,7 +89,7 @@ func SimulateAtBat(in []models.AtBatData ) []models.AtBatResult {
               }
           case "ball_in_play":
                 event_type_sequence = append(event_type_sequence, event_type_result)
-                return []models.AtBatResult{{
+                return []models.PlateAppearanceResult{{
                   GameYear: in[0].GameYear,
                   PitcherId: in[0].PitcherId,
                   BatterId: in[0].BatterId,
@@ -128,7 +128,7 @@ func SimulateAtBat(in []models.AtBatData ) []models.AtBatResult {
       case strikes == 3:
 
             event_type_sequence = append(event_type_sequence, "strikeout")
-            return []models.AtBatResult{{
+            return []models.PlateAppearanceResult{{
               GameYear: in[0].GameYear,
               PitcherId: in[0].PitcherId,
               BatterId: in[0].BatterId,
@@ -146,7 +146,7 @@ func SimulateAtBat(in []models.AtBatData ) []models.AtBatResult {
             }}
       case balls == 4:
           event_type_sequence = append(event_type_sequence, "walk")
-            return []models.AtBatResult{{
+            return []models.PlateAppearanceResult{{
               GameYear: in[0].GameYear,
               PitcherId: in[0].PitcherId,
               BatterId: in[0].BatterId,
