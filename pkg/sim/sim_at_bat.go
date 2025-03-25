@@ -47,7 +47,7 @@ func SimulateAtBat(in []models.AtBatData ) []models.AtBatResult {
     is_strike_sequence := []bool {}
     is_swing_sequence := []bool {}
     is_contact_sequence := []string {}
-    hit_type_sequence := []string {}
+    event_type_sequence := []string {}
 
 
     for {
@@ -63,7 +63,7 @@ func SimulateAtBat(in []models.AtBatData ) []models.AtBatResult {
       is_contact_result := SimulateContactPercentage(batterContactProbs, batterStands, pitcherThrows, pitch_type_result, location_velo_result[0], location_velo_result[1])
       //fmt.Println("stand:", batterStands, "p_throws:", pitcherThrows, "pitch_type:")
 
-      hit_type_result := SimulateBatterHitType(batterHitProbs, batterStands, pitcherThrows, pitch_type_result, location_velo_result[0], location_velo_result[1], 
+      event_type_result := SimulateBatterHitType(batterHitProbs, batterStands, pitcherThrows, pitch_type_result, location_velo_result[0], location_velo_result[1], 
                                                                                                                                   location_velo_result[2])
 
 
@@ -88,7 +88,7 @@ func SimulateAtBat(in []models.AtBatData ) []models.AtBatResult {
                   strikes += 1 // foul with less than 2 strikes
               }
           case "ball_in_play":
-                hit_type_sequence = append(hit_type_sequence, hit_type_result)
+                event_type_sequence = append(event_type_sequence, event_type_result)
                 return []models.AtBatResult{{
                   GameYear: in[0].GameYear,
                   PitcherId: in[0].PitcherId,
@@ -102,7 +102,7 @@ func SimulateAtBat(in []models.AtBatData ) []models.AtBatResult {
                   IsStrike: is_strike_sequence,
                   IsSwing: is_swing_sequence,
                   IsContact: is_contact_sequence,
-                  HitType: hit_type_sequence,
+                  EventType: event_type_sequence,
 
                 }}
                 
@@ -127,7 +127,7 @@ func SimulateAtBat(in []models.AtBatData ) []models.AtBatResult {
 
       case strikes == 3:
 
-            hit_type_sequence = append(hit_type_sequence, "strikeout")
+            event_type_sequence = append(event_type_sequence, "strikeout")
             return []models.AtBatResult{{
               GameYear: in[0].GameYear,
               PitcherId: in[0].PitcherId,
@@ -141,11 +141,11 @@ func SimulateAtBat(in []models.AtBatData ) []models.AtBatResult {
               IsStrike: is_strike_sequence,
               IsSwing: is_swing_sequence,
               IsContact: is_contact_sequence,
-              HitType: hit_type_sequence,
+              EventType: event_type_sequence,
 
             }}
       case balls == 4:
-          hit_type_sequence = append(hit_type_sequence, "walk")
+          event_type_sequence = append(event_type_sequence, "walk")
             return []models.AtBatResult{{
               GameYear: in[0].GameYear,
               PitcherId: in[0].PitcherId,
@@ -159,7 +159,7 @@ func SimulateAtBat(in []models.AtBatData ) []models.AtBatResult {
               IsStrike: is_strike_sequence,
               IsSwing: is_swing_sequence,
               IsContact: is_contact_sequence,
-              HitType: hit_type_sequence,
+              EventType: event_type_sequence,
 
           }}
 
