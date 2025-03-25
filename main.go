@@ -51,8 +51,8 @@ func main() {
                 AwayBatter8: 665742,
                 AwayBatter9: 665742,
 
-                HomeStartingPitcher: 607192, 
-                AwayStartingPitcher: 607192,
+                HomeStartingPitcher: 571945, 
+                AwayStartingPitcher: 571945,
 
 
               },
