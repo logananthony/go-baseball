@@ -15,7 +15,7 @@ type AtBatResult struct {
   IsStrike []bool
   IsSwing []bool
   IsContact []string
-  HitType []string
+  EventType []string
 }
 
 

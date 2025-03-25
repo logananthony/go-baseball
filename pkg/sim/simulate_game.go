@@ -72,8 +72,8 @@ func SimulateGame(in []models.GameData) int {
                     },
                   })
 
-                 if len(awayPaResult) > 0 && len(awayPaResult[0].HitType) > 0 {
-                      switch awayPaResult[0].HitType[0] {
+                 if len(awayPaResult) > 0 && len(awayPaResult[0].EventType) > 0 {
+                      switch awayPaResult[0].EventType[0] {
                       case "walk":
                           if awayBaseState[0] || (awayBaseState[0] && awayBaseState[2]) {
                                   awayBaseState[0] = awayBaseState[1]
@@ -125,13 +125,13 @@ func SimulateGame(in []models.GameData) int {
 
                   awayBatterNumber++
 
-                  if len(awayPaResult) > 0 && len(awayPaResult[0].HitType) > 0 {
-                    if (awayPaResult[0].HitType[0] == "out") || (awayPaResult[0].HitType[0] == "strikeout") {
+                  if len(awayPaResult) > 0 && len(awayPaResult[0].EventType) > 0 {
+                    if (awayPaResult[0].EventType[0] == "out") || (awayPaResult[0].EventType[0] == "strikeout") {
                           topOuts++
                     }
                   }
 
-                  fmt.Println("Batter #: ", awayBatterNumber, " | Event: ",  awayPaResult[0].HitType[0], " | Base State: ", 
+                  fmt.Println("Batter #: ", awayBatterNumber, " | Event: ",  awayPaResult[0].EventType[0], " | Base State: ", 
                               awayBaseState[0], awayBaseState[1], awayBaseState[2],   " | Score: ", awayScore, "-", homeScore)
 
               }
@@ -154,8 +154,8 @@ func SimulateGame(in []models.GameData) int {
                     },
                   })
 
-                 if len(homePaResult) > 0 && len(homePaResult[0].HitType) > 0 {
-                      switch homePaResult[0].HitType[0] {
+                 if len(homePaResult) > 0 && len(homePaResult[0].EventType) > 0 {
+                      switch homePaResult[0].EventType[0] {
                       case "walk":
                           if homeBaseState[0] || (homeBaseState[0] && homeBaseState[2]) {
                                   homeBaseState[0] = homeBaseState[1]
@@ -205,13 +205,13 @@ func SimulateGame(in []models.GameData) int {
                 
                   homeBatterNumber++
                   
-                  if len(homePaResult) > 0 && len(homePaResult[0].HitType) > 0 {
-                    if (homePaResult[0].HitType[0] == "out") || (homePaResult[0].HitType[0] == "strikeout") {
+                  if len(homePaResult) > 0 && len(homePaResult[0].EventType) > 0 {
+                    if (homePaResult[0].EventType[0] == "out") || (homePaResult[0].EventType[0] == "strikeout") {
                           botOuts++
                     }
                   }
 
-                  fmt.Println("Batter #: ", homeBatterNumber, " | Event: ",  homePaResult[0].HitType[0], " | Base State: ", 
+                  fmt.Println("Batter #: ", homeBatterNumber, " | Event: ",  homePaResult[0].EventType[0], " | Base State: ", 
                               homeBaseState[0], homeBaseState[1], homeBaseState[2],   " | Score: ", awayScore, "-", homeScore)
 
               }
