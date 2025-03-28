@@ -46,13 +46,14 @@ func SimulateGame(in []models.GameData) []models.GameResult {
         homeScore := 0
         awayBatterNumber := 0
         homeBatterNumber := 0
+        atBatNumber := 0
 
         //var plateAppRes []models.GameResult
 
         var gameRes []models.GameResult
         //var paRes PlateAppearanceResult
 
-        for inning < 2 {
+        for inning <= 1 {
 
               topOuts := 0
               botOuts := 0
@@ -76,11 +77,8 @@ func SimulateGame(in []models.GameData) []models.GameResult {
                     },
                   })
 
-                  gameRes = append(gameRes, models.GameResult{})
-                  gameRes[0].PitchData = append(gameRes[0].PitchData, awayPaResult...)
+                  atBatNumber += 1
 
-
-                  //plateAppRes = append(plateAppRes, awayPaResult...)
 
                  if len(awayPaResult) > 0 && len(awayPaResult[0].EventType) > 0 {
                       switch awayPaResult[0].EventType[0] {
@@ -133,7 +131,24 @@ func SimulateGame(in []models.GameData) []models.GameResult {
                       }
                   }
 
+                  gameRes = append(gameRes, models.GameResult{
+                      GameYear: awayPaResult[0].GameYear[0],
+                      AwayScore: awayScore, 
+                      HomeScore: homeScore,
+                      AtBatNumber: atBatNumber,
+                      Inning: inning,
+                      InningTopBot: "Top",
+                      Outs: topOuts,
+                      On1b: awayBaseState[0],
+                      On2b: awayBaseState[1],
+                      On3b: awayBaseState[2],
+                  })
+                  gameRes[0].PitchData = append(gameRes[0].PitchData, awayPaResult...)
+
+ 
+
                   awayBatterNumber++
+
 
                   if len(awayPaResult) > 0 && len(awayPaResult[0].EventType) > 0 {
                     if (awayPaResult[0].EventType[0] == "out") || (awayPaResult[0].EventType[0] == "strikeout") {
@@ -164,8 +179,7 @@ func SimulateGame(in []models.GameData) []models.GameResult {
                     },
                   })
 
-                  gameRes = append(gameRes, models.GameResult{})
-                  gameRes[0].PitchData = append(gameRes[0].PitchData, homePaResult...)
+                  atBatNumber += 1
 
 
                  if len(homePaResult) > 0 && len(homePaResult[0].EventType) > 0 {
@@ -215,6 +229,21 @@ func SimulateGame(in []models.GameData) []models.GameResult {
                           homeBaseState[3] = false 
                       }
                   }
+
+                  gameRes = append(gameRes, models.GameResult{
+                      GameYear: homePaResult[0].GameYear[0],
+                      AwayScore: awayScore, 
+                      HomeScore: homeScore, 
+                      AtBatNumber: atBatNumber,
+                      Inning: inning,
+                      InningTopBot: "Bot",
+                      Outs: botOuts,
+                      On1b: homeBaseState[0],
+                      On2b: homeBaseState[1],
+                      On3b: homeBaseState[2],
+                  })
+                  gameRes[0].PitchData = append(gameRes[0].PitchData, homePaResult...)
+
 
                 
                   homeBatterNumber++
