@@ -1,7 +1,9 @@
 package models
 
 
-type PlateAppearanceResult struct { 
+
+type PlateAppearanceResult struct {
+  GameYear []int
   PitcherId []int
   BatterId []int
   BatterStands []string
