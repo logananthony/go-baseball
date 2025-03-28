@@ -37,13 +37,17 @@ func SimulateAtBat(in []models.PlateAppearanceData) []models.PlateAppearanceResu
       } else if batterStands == "B" && pitcherThrows == "L" {
       batterStands = "R"
     }
-
+    
+    batterid_sequence := []int {}
+    pitcherid_sequence := []int {}
+  
     pitch_type_sequence := []string {}
     plate_x_sequence := []float64 {}
     plate_z_sequence := []float64 {}
     velocity_sequence := []float64 {}
     strike_sequence := []int {}
     ball_sequence := []int {}
+    pitch_count_sequence := []int {}
     is_strike_sequence := []bool {}
     is_swing_sequence := []bool {}
     is_contact_sequence := []string {}
@@ -52,7 +56,8 @@ func SimulateAtBat(in []models.PlateAppearanceData) []models.PlateAppearanceResu
 
     for {
     
-  pitch_count += 1
+      pitch_count += 1
+      
       
       pitcher_freqs := fetcher.FetchPitcherFrequencies(db, in[0].PitcherId, batterStands)
       pitch_type_result := SimulatePitchType(pitcher_freqs, balls, strikes)
@@ -61,12 +66,11 @@ func SimulateAtBat(in []models.PlateAppearanceData) []models.PlateAppearanceResu
       is_strike_result := utils.IsPitchStrike(location_velo_result[0], location_velo_result[1])
       is_swing_result := SimulateSwingDecision(batterSwingProbs, batterStands, pitcherThrows, pitch_type_result, location_velo_result[0], location_velo_result[1])
       is_contact_result := SimulateContactPercentage(batterContactProbs, batterStands, pitcherThrows, pitch_type_result, location_velo_result[0], location_velo_result[1])
-      //fmt.Println("stand:", batterStands, "p_throws:", pitcherThrows, "pitch_type:")
-
       event_type_result := SimulateBatterHitType(batterHitProbs, batterStands, pitcherThrows, pitch_type_result, location_velo_result[0], location_velo_result[1], 
                                                                                                                                   location_velo_result[2])
 
-
+      batterid_sequence = append(batterid_sequence, in[0].BatterId)
+      pitcherid_sequence = append(pitcherid_sequence, in[0].PitcherId)
       pitch_type_sequence = append(pitch_type_sequence, pitch_type_result)
       plate_x_sequence = append(plate_x_sequence, location_velo_result[0])
       plate_z_sequence = append(plate_z_sequence, location_velo_result[1])
@@ -75,6 +79,7 @@ func SimulateAtBat(in []models.PlateAppearanceData) []models.PlateAppearanceResu
       is_swing_sequence = append(is_swing_sequence, is_swing_result)
       strike_sequence = append(strike_sequence, strikes)
       ball_sequence = append(ball_sequence, balls)
+      pitch_count_sequence = append(pitch_count_sequence, pitch_count)
 
       if is_swing_result {
           // Batter swung
@@ -90,11 +95,11 @@ func SimulateAtBat(in []models.PlateAppearanceData) []models.PlateAppearanceResu
           case "ball_in_play":
                 event_type_sequence = append(event_type_sequence, event_type_result)
                 return []models.PlateAppearanceResult{{
-                  GameYear: in[0].GameYear,
-                  PitcherId: in[0].PitcherId,
-                  BatterId: in[0].BatterId,
+                  PitcherId: pitcherid_sequence,
+                  BatterId: batterid_sequence,
                   Strikes: strike_sequence, 
                   Balls: ball_sequence, 
+                  PitchCount: pitch_count_sequence,
                   PitchType: pitch_type_sequence,
                   PlateX: plate_x_sequence,
                   PlateZ: plate_z_sequence, 
@@ -129,11 +134,11 @@ func SimulateAtBat(in []models.PlateAppearanceData) []models.PlateAppearanceResu
 
             event_type_sequence = append(event_type_sequence, "strikeout")
             return []models.PlateAppearanceResult{{
-              GameYear: in[0].GameYear,
-              PitcherId: in[0].PitcherId,
-              BatterId: in[0].BatterId,
+              PitcherId: pitcherid_sequence,
+              BatterId: batterid_sequence,
               Strikes: strike_sequence, 
               Balls: ball_sequence, 
+              PitchCount: pitch_count_sequence,
               PitchType: pitch_type_sequence,
               PlateX: plate_x_sequence,
               PlateZ: plate_z_sequence, 
@@ -147,11 +152,11 @@ func SimulateAtBat(in []models.PlateAppearanceData) []models.PlateAppearanceResu
       case balls == 4:
           event_type_sequence = append(event_type_sequence, "walk")
             return []models.PlateAppearanceResult{{
-              GameYear: in[0].GameYear,
-              PitcherId: in[0].PitcherId,
-              BatterId: in[0].BatterId,
+              PitcherId: pitcherid_sequence,
+              BatterId: batterid_sequence,
               Strikes: strike_sequence, 
-              Balls: ball_sequence, 
+              Balls: ball_sequence,
+              PitchCount: pitch_count_sequence,
               PitchType: pitch_type_sequence,
               PlateX: plate_x_sequence,
               PlateZ: plate_z_sequence, 
