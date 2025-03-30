@@ -10,10 +10,14 @@ import (
 
 )
 
+
+
 func SimulateAtBat(in []models.PlateAppearanceData) []models.PlateAppearanceResult {
 
     db := config.ConnectDB()
     defer db.Close()
+
+
 
     balls := 0
     strikes := 0
