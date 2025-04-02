@@ -3,7 +3,7 @@ package models
 
 type GameResult struct {
 
-    GameYear int
+    //GameYear int
     AwayScore int
     HomeScore int
     AtBatNumber int

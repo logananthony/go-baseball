@@ -4,7 +4,7 @@ package models
 
 type PlateAppearanceResult struct {
   GameYear []int
-  PitcherId []int
+  PitcherId []int 
   BatterId []int
   BatterStands []string
   PitcherThrows []string

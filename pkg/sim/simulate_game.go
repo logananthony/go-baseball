@@ -4,6 +4,10 @@ import (
 	"fmt"
 	"github.com/logananthony/go-baseball/pkg/config"
 	"github.com/logananthony/go-baseball/pkg/models"
+	"github.com/logananthony/go-baseball/pkg/poster"
+  "database/sql"
+  "github.com/google/uuid"
+  //"log"
 )
 
 func SimulateGame(in []models.GameData) []models.GameResult {
@@ -25,7 +29,7 @@ func SimulateGame(in []models.GameData) []models.GameResult {
 	homePitcher := in[0].HomeStartingPitcher
 	awayPitcher := in[0].AwayStartingPitcher
 
-	inning := 9
+	inning := 1
 	awayScore := 0
 	homeScore := 0
 	awayBatterNumber := 0
@@ -42,7 +46,6 @@ func SimulateGame(in []models.GameData) []models.GameResult {
 
 		fmt.Println("Top Inning:", inning)
 
-		// --- Top Half ---
 		for topOuts < 3 {
       awayBatterNumber = awayBatterNumber % 9
 			awayBatter := awayLineup[awayBatterNumber]
@@ -65,7 +68,6 @@ func SimulateGame(in []models.GameData) []models.GameResult {
 			awayBatterNumber++
 		}
 
-		// Early end if home team leads after top 9
 		if inning >= 9 && homeScore > awayScore {
 			fmt.Println("Home team wins:", homeScore, "-", awayScore)
 			break
@@ -94,9 +96,9 @@ func SimulateGame(in []models.GameData) []models.GameResult {
 			gameRes = append(gameRes, BuildGameResult(homePaResult, atBatNumber, inning, "Bot", botOuts, homeBaseState, awayScore, homeScore))
 			homeBatterNumber++
 
-			// Walk-off condition
 			if inning >= 9 && homeScore > awayScore {
 				fmt.Println("Home team wins (walk-off):", homeScore, "-", awayScore)
+postGameResults(gameRes, db)
 				return gameRes
 			}
 		}
@@ -104,12 +106,14 @@ func SimulateGame(in []models.GameData) []models.GameResult {
 		// If 9 or later and not tied, game ends
 		if inning >= 9 && homeScore != awayScore {
 			fmt.Println("Away team wins:", awayScore, "-", homeScore)
+      postGameResults(gameRes, db)
 			break
 		}
 
 		inning++
 	}
 
+postGameResults(gameRes, db)
 	return gameRes
 }
 
@@ -122,7 +126,19 @@ func ProcessPlateAppearance(paResult []models.PlateAppearanceResult, score int, 
 	case "walk":
 		if !baseState[0] {
 			baseState[0] = true
-		}
+    } else if baseState[0] {
+      baseState[0] = true
+      baseState[1] = baseState[0]
+    } else if baseState[0] && baseState[1] {
+      baseState[0] = true
+      baseState[1] = baseState[0]
+      baseState[2] = baseState[1]
+    } else if baseState[0] && baseState[1] && baseState[2] {
+      baseState[0] = true
+      baseState[1] = baseState[0]
+      baseState[2] = baseState[1]
+      baseState[3] = baseState[2]
+    }
 	case "single":
 		baseState[3] = baseState[2]
 		baseState[2] = baseState[1]
@@ -161,7 +177,6 @@ func ProcessPlateAppearance(paResult []models.PlateAppearanceResult, score int, 
 
 func BuildGameResult(pa []models.PlateAppearanceResult, abNum, inning int, half string, outs int, bases []bool, awayScore, homeScore int) models.GameResult {
 	res := models.GameResult{
-		GameYear:    pa[0].GameYear[0],
 		AtBatNumber: abNum,
 		Inning:      inning,
 		InningTopBot: half,
@@ -175,4 +190,23 @@ func BuildGameResult(pa []models.PlateAppearanceResult, abNum, inning int, half 
 	res.PitchData = append(res.PitchData, pa...)
 	return res
 }
+
+
+func postGameResults(gameRes []models.GameResult, db *sql.DB) {
+  gameId := uuid.New().String()
+	gameYear := 2024
+
+	for _, result := range gameRes {
+		// Optional debug
+		if len(result.PitchData) >= 0 {
+			fmt.Printf("DEBUG: Inserting %d pitches for AtBat #%d\n", len(result.PitchData[0].PitchType), result.AtBatNumber)
+		}
+
+		err := poster.InsertGameResult(db, gameId, gameYear, result)
+		if err != nil {
+			fmt.Println("Error inserting game result:", err)
+		}
+	}
+}
+
 

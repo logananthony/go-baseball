@@ -46,10 +46,13 @@ func SimulateAtBat(in []models.PlateAppearanceData) []models.PlateAppearanceResu
     game_year_sequence := []int {}
     batterid_sequence := []int {}
     pitcherid_sequence := []int {}
+    stand_sequence := []string {}
+    throws_sequence := []string {}
   
     pitch_type_sequence := []string {}
     plate_x_sequence := []float64 {}
     plate_z_sequence := []float64 {}
+    zone_sequence := []int {}
     velocity_sequence := []float64 {}
     strike_sequence := []int {}
     ball_sequence := []int {}
@@ -69,6 +72,7 @@ func SimulateAtBat(in []models.PlateAppearanceData) []models.PlateAppearanceResu
       pitch_type_result := SimulatePitchType(pitcher_freqs, balls, strikes)
       pitch_covariance := fetcher.FetchPitcherCovarianceMean(db, int64(in[0].PitcherId), int64(in[0].GameYear))
       location_velo_result := SimulatePitchLocationVelo(pitch_covariance, pitch_type_result, batterStands, balls, strikes)
+      zone_result := utils.GetPitchZone(location_velo_result[0], location_velo_result[1])
       is_strike_result := utils.IsPitchStrike(location_velo_result[0], location_velo_result[1])
       is_swing_result := SimulateSwingDecision(batterSwingProbs, batterStands, pitcherThrows, pitch_type_result, location_velo_result[0], location_velo_result[1])
       is_contact_result := SimulateContactPercentage(batterContactProbs, batterStands, pitcherThrows, pitch_type_result, location_velo_result[0], location_velo_result[1])
@@ -77,9 +81,12 @@ func SimulateAtBat(in []models.PlateAppearanceData) []models.PlateAppearanceResu
       game_year_sequence = append(game_year_sequence, in[0].GameYear)
       batterid_sequence = append(batterid_sequence, in[0].BatterId)
       pitcherid_sequence = append(pitcherid_sequence, in[0].PitcherId)
+      stand_sequence = append(stand_sequence, batterStands)
+      throws_sequence = append(throws_sequence, pitcherThrows)
       pitch_type_sequence = append(pitch_type_sequence, pitch_type_result)
       plate_x_sequence = append(plate_x_sequence, location_velo_result[0])
       plate_z_sequence = append(plate_z_sequence, location_velo_result[1])
+      zone_sequence = append(zone_sequence, zone_result)
       velocity_sequence = append(velocity_sequence, location_velo_result[2])
       is_strike_sequence = append(is_strike_sequence, is_strike_result)
       is_swing_sequence = append(is_swing_sequence, is_swing_result)
@@ -104,12 +111,15 @@ func SimulateAtBat(in []models.PlateAppearanceData) []models.PlateAppearanceResu
                   GameYear: game_year_sequence,
                   PitcherId: pitcherid_sequence,
                   BatterId: batterid_sequence,
+                  BatterStands: stand_sequence,
+                  PitcherThrows: throws_sequence,
                   Strikes: strike_sequence, 
                   Balls: ball_sequence, 
                   PitchCount: pitch_count_sequence,
                   PitchType: pitch_type_sequence,
                   PlateX: plate_x_sequence,
                   PlateZ: plate_z_sequence, 
+                  Zone: zone_sequence,
                   Velocity: velocity_sequence,
                   IsStrike: is_strike_sequence,
                   IsSwing: is_swing_sequence,
@@ -144,12 +154,15 @@ func SimulateAtBat(in []models.PlateAppearanceData) []models.PlateAppearanceResu
               GameYear: game_year_sequence,
               PitcherId: pitcherid_sequence,
               BatterId: batterid_sequence,
+              BatterStands: stand_sequence,
+              PitcherThrows: throws_sequence,
               Strikes: strike_sequence, 
               Balls: ball_sequence, 
               PitchCount: pitch_count_sequence,
               PitchType: pitch_type_sequence,
               PlateX: plate_x_sequence,
               PlateZ: plate_z_sequence, 
+              Zone: zone_sequence,
               Velocity: velocity_sequence,
               IsStrike: is_strike_sequence,
               IsSwing: is_swing_sequence,
@@ -163,12 +176,15 @@ func SimulateAtBat(in []models.PlateAppearanceData) []models.PlateAppearanceResu
               GameYear: game_year_sequence,
               PitcherId: pitcherid_sequence,
               BatterId: batterid_sequence,
+              BatterStands: stand_sequence,
+              PitcherThrows: throws_sequence,
               Strikes: strike_sequence, 
               Balls: ball_sequence,
               PitchCount: pitch_count_sequence,
               PitchType: pitch_type_sequence,
               PlateX: plate_x_sequence,
               PlateZ: plate_z_sequence, 
+              Zone: zone_sequence,
               Velocity: velocity_sequence,
               IsStrike: is_strike_sequence,
               IsSwing: is_swing_sequence,
