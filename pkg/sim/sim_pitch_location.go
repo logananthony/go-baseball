@@ -46,17 +46,13 @@ func SimulatePitchLocationVelo(in []models.PitcherCovarianceMean, pitch_type str
           }
       } 
 
+      if len(mean_mat) != 3 {
+          return []float64{0, 0, 0}
+      }
+
     src := rand.NewSource(uint64(time.Now().UnixNano()))
-
-
-    
-
-
     sample := distmv.NormalRandCov(nil, mean_mat, cov_mat, src)
     
-
-
-
   return sample
 
 }

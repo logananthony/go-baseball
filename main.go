@@ -1,12 +1,16 @@
 package main
-
+ 
 import (
     //"github.com/logananthony/go-baseball/pkg/fetcher"
     "github.com/logananthony/go-baseball/pkg/models"
     "github.com/logananthony/go-baseball/pkg/sim"
     //"github.com/logananthony/go-baseball/pkg/fetcher"
     //"github.com/logananthony/go-baseball/pkg/config"
-    //"github.com/davecgh/go-spew/spew"
+    "github.com/davecgh/go-spew/spew"
+    //_"github.com/lib/pq"
+	  //"database/sql"
+    //"github.com/jmoiron/sqlx"
+    //"log"
     //"fmt"
     //"encoding/json"
 )
@@ -63,7 +67,10 @@ func main() {
 
     //fmt.Println(game_result)
 
-      //spew.Dump(game_result)
+     spew.Dump(game_result)
+
+
+
 
 
   }

@@ -23,7 +23,7 @@ type GameData struct {
   AwayBatter8 int
   AwayBatter9 int
 
-    HomeStartingPitcher int
-    AwayStartingPitcher int
+  HomeStartingPitcher int
+  AwayStartingPitcher int
   
 }
