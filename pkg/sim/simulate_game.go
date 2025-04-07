@@ -5,6 +5,7 @@ import (
 	"github.com/logananthony/go-baseball/pkg/config"
 	"github.com/logananthony/go-baseball/pkg/models"
 	"github.com/logananthony/go-baseball/pkg/poster"
+	//"github.com/logananthony/go-baseball/pkg/fetcher"
   "database/sql"
   "github.com/google/uuid"
   //"log"
@@ -15,19 +16,31 @@ func SimulateGame(in []models.GameData) []models.GameResult {
 	defer db.Close()
 
 	homeLineup := []int{
-		in[0].HomeBatter1, in[0].HomeBatter2, in[0].HomeBatter3,
-		in[0].HomeBatter4, in[0].HomeBatter5, in[0].HomeBatter6,
-		in[0].HomeBatter7, in[0].HomeBatter8, in[0].HomeBatter9,
+		in[0].HomeBatter1Id, in[0].HomeBatter2Id, in[0].HomeBatter3Id,
+		in[0].HomeBatter4Id, in[0].HomeBatter5Id, in[0].HomeBatter6Id,
+		in[0].HomeBatter7Id, in[0].HomeBatter8Id, in[0].HomeBatter9Id,
+	}
+
+	homeLineupGameYear := []int{
+		in[0].HomeBatter1GameYear, in[0].HomeBatter2GameYear, in[0].HomeBatter3GameYear,
+		in[0].HomeBatter4GameYear, in[0].HomeBatter5GameYear, in[0].HomeBatter6GameYear,
+		in[0].HomeBatter7GameYear, in[0].HomeBatter8GameYear, in[0].HomeBatter9GameYear,
 	}
 
 	awayLineup := []int{
-		in[0].AwayBatter1, in[0].AwayBatter2, in[0].AwayBatter3,
-		in[0].AwayBatter4, in[0].AwayBatter5, in[0].AwayBatter6,
-		in[0].AwayBatter7, in[0].AwayBatter8, in[0].AwayBatter9,
+		in[0].AwayBatter1Id, in[0].AwayBatter2Id, in[0].AwayBatter3Id,
+		in[0].AwayBatter4Id, in[0].AwayBatter5Id, in[0].AwayBatter6Id,
+		in[0].AwayBatter7Id, in[0].AwayBatter8Id, in[0].AwayBatter9Id,
 	}
 
-	homePitcher := in[0].HomeStartingPitcher
-	awayPitcher := in[0].AwayStartingPitcher
+	awayLineupGameYear := []int{
+		in[0].AwayBatter1GameYear, in[0].AwayBatter2GameYear, in[0].AwayBatter3GameYear,
+		in[0].AwayBatter4GameYear, in[0].AwayBatter5GameYear, in[0].AwayBatter6GameYear,
+		in[0].AwayBatter7GameYear, in[0].AwayBatter8GameYear, in[0].AwayBatter9GameYear,
+	}
+
+	homePitcher := in[0].HomeStartingPitcherId
+	awayPitcher := in[0].AwayStartingPitcherId
 
 	inning := 1
 	awayScore := 0
@@ -49,8 +62,9 @@ func SimulateGame(in []models.GameData) []models.GameResult {
 		for topOuts < 3 {
       awayBatterNumber = awayBatterNumber % 9
 			awayBatter := awayLineup[awayBatterNumber]
+      awayBatterGameYear := awayLineupGameYear[awayBatterNumber]
 			awayPaResult := SimulateAtBat([]models.PlateAppearanceData{{
-				GameYear: 2024,
+				GameYear: awayBatterGameYear,
 				PitcherId: homePitcher,
 				BatterId:  awayBatter,
 				Strikes:   0,
@@ -78,8 +92,9 @@ func SimulateGame(in []models.GameData) []models.GameResult {
 		for botOuts < 3 {
       homeBatterNumber = homeBatterNumber % 9
 			homeBatter := homeLineup[homeBatterNumber]
+      homeBatterGameYear := homeLineupGameYear[homeBatterNumber]
 			homePaResult := SimulateAtBat([]models.PlateAppearanceData{{
-				GameYear: 2024,
+				GameYear: homeBatterGameYear,
 				PitcherId: awayPitcher,
 				BatterId:  homeBatter,
 				Strikes:   0,
