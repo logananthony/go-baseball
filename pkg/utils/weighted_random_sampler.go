@@ -6,9 +6,10 @@ import (
 )
 
 func WeightedSample(choices []string, weights []float64) string {
-    //rand.Seed(time.Now().UnixNano())
+    if len(choices) == 0 || len(weights) == 0 || len(choices) != len(weights) {
+        return "" // or log, panic with message, or return a default value
+    }
 
-    // Compute cumulative sum of weights
     var cumulative []float64
     total := 0.0
     for _, w := range weights {
@@ -16,17 +17,18 @@ func WeightedSample(choices []string, weights []float64) string {
         cumulative = append(cumulative, total)
     }
 
-    // Generate a random number between 0 and total weight
+    if total == 0.0 {
+        return choices[0] // or handle gracefully
+    }
+
     r := rand.Float64() * total
 
-    // Find the corresponding choice
     for i, c := range cumulative {
         if r < c {
             return choices[i]
         }
     }
 
-    // Fallback (shouldn't happen)
-    return choices[len(choices)-1]
+    return choices[len(choices)-1] // fallback
 }
 
