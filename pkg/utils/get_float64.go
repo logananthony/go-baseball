@@ -29,3 +29,16 @@ func GetInt(n sql.NullInt64) int {
 }
 
 
+func StrToNull(s string) sql.NullString {
+	if s == "" {
+		return sql.NullString{Valid: false}
+	}
+	return sql.NullString{String: s, Valid: true}
+}
+
+func IntToNull(i int) sql.NullInt32 {
+	if i == -1 {
+		return sql.NullInt32{Valid: false}
+	}
+	return sql.NullInt32{Int32: int32(i), Valid: true}
+}

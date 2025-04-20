@@ -2,12 +2,21 @@ package poster
 
 import (
 	"database/sql"
+	"fmt"
+
 	"github.com/logananthony/go-baseball/pkg/models"
-  "fmt"
 )
+
 func toNullableString(slice []string, i int) string {
 	if slice == nil || len(slice) <= i {
 		return ""
+	}
+	return slice[i]
+}
+
+func toNullableInt(slice []int, i int) int {
+	if slice == nil || len(slice) <= i {
+		return 0
 	}
 	return slice[i]
 }
@@ -43,7 +52,6 @@ func InsertGameResult(db *sql.DB, gameId string, gameYear int, result models.Gam
 		)
 
 		for i := 0; i < numPitches; i++ {
-			// Only insert is_contact if it's a swing and index is safe
 			var isContact interface{}
 			if pa.IsSwing[i] && i < len(pa.IsContact) {
 				isContact = pa.IsContact[i]
@@ -51,7 +59,6 @@ func InsertGameResult(db *sql.DB, gameId string, gameYear int, result models.Gam
 				isContact = nil
 			}
 
-			// Only insert event_type on final pitch of PA, using EventType[0]
 			var eventType interface{}
 			if i == numPitches-1 && len(pa.EventType) > 0 {
 				eventType = pa.EventType[0]
@@ -59,40 +66,52 @@ func InsertGameResult(db *sql.DB, gameId string, gameYear int, result models.Gam
 				eventType = nil
 			}
 
-            _, err := db.Exec(`
+      var exitVelocity any
+      if i == numPitches-1 && len(pa.ExitVelocity) > 0 && i < len(pa.IsContact) && pa.IsContact[i] == "ball_in_play" {
+        exitVelocity = pa.ExitVelocity[0]
+      } else {
+        exitVelocity = nil
+      }
+
+
+			_, err := db.Exec(`
               INSERT INTO game_result (
                 game_id, game_year,
                 at_bat_number, inning, inning_topbot,
                 outs, on1B, on2B, on3B,
                 away_score, home_score,
-                pitcherid, batterid,
+                pitcherid, pitcher_fullname, pitcher_game_year,
+                batterid, batter_fullname, batter_game_year,
                 batter_stands, pitcher_throws,
                 strikes, balls, pitch_count,
                 pitch_type, plate_x, plate_z, zone,
                 velocity, is_strike, is_swing, is_contact,
-                event_type
+                event_type, exit_velocity
               ) VALUES (
                 $1, $2, $3, $4, $5,
                 $6, $7, $8, $9,
                 $10, $11,
-                $12, $13, $14, $15,
-                $16, $17, $18,
-                $19, $20, $21, $22,
+                $12, $13, $14,
+                $15, $16, $17,
+                $18, $19,
+                $20, $21, $22,
                 $23, $24, $25, $26,
-                $27
+                $27, $28, $29, $30,
+                $31, $32
               )
           `,
-            gameId, gameYear,
-            result.AtBatNumber, result.Inning, result.InningTopBot,
-            result.Outs, result.On1b, result.On2b, result.On3b,
-            result.AwayScore, result.HomeScore,
-            pa.PitcherId[i], pa.BatterId[i],
-            toNullableString(pa.BatterStands, i), toNullableString(pa.PitcherThrows, i),
-            pa.Strikes[i], pa.Balls[i], pa.PitchCount[i],
-            pa.PitchType[i], pa.PlateX[i], pa.PlateZ[i], pa.Zone[i],
-            pa.Velocity[i], pa.IsStrike[i], pa.IsSwing[i], isContact,
-            eventType,
-          )
+				gameId, gameYear,
+				result.AtBatNumber, result.Inning, result.InningTopBot,
+				result.Outs, result.On1b, result.On2b, result.On3b,
+				result.AwayScore, result.HomeScore,
+				pa.PitcherId[i], toNullableString(pa.PitcherFullName, i), toNullableInt(pa.PitcherGameYear, i),
+				pa.BatterId[i], toNullableString(pa.BatterFullName, i), toNullableInt(pa.BatterGameYear, i),
+				toNullableString(pa.BatterStands, i), toNullableString(pa.PitcherThrows, i),
+				pa.Strikes[i], pa.Balls[i], pa.PitchCount[i],
+				pa.PitchType[i], pa.PlateX[i], pa.PlateZ[i], pa.Zone[i],
+				pa.Velocity[i], pa.IsStrike[i], pa.IsSwing[i], isContact,
+				eventType, exitVelocity,
+			)
 
 			if err != nil {
 				fmt.Println("🚨 INSERT FAILED for AtBatNumber", result.AtBatNumber, ":", err)
