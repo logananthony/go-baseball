@@ -3,8 +3,11 @@ package models
 
 
 type PlateAppearanceResult struct {
-  GameYear []int
+  PitcherGameYear []int
+  PitcherFullName []string
   PitcherId []int 
+  BatterGameYear []int
+  BatterFullName []string
   BatterId []int
   BatterStands []string
   PitcherThrows []string
@@ -19,6 +22,7 @@ type PlateAppearanceResult struct {
   IsStrike []bool
   IsSwing []bool
   IsContact []string
+  ExitVelocity []float64
   EventType []string
 }
 

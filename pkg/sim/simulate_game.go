@@ -40,7 +40,9 @@ func SimulateGame(in []models.GameData) []models.GameResult {
 	}
 
 	homePitcher := in[0].HomeStartingPitcherId
+  homePitcherGameYear := in[0].HomeStartingPitcherGameYear
 	awayPitcher := in[0].AwayStartingPitcherId
+  awayPitcherGameYear := in[0].AwayStartingPitcherGameYear
 
 	inning := 1
 	awayScore := 0
@@ -64,9 +66,10 @@ func SimulateGame(in []models.GameData) []models.GameResult {
 			awayBatter := awayLineup[awayBatterNumber]
       awayBatterGameYear := awayLineupGameYear[awayBatterNumber]
 			awayPaResult := SimulateAtBat([]models.PlateAppearanceData{{
-				GameYear: awayBatterGameYear,
-				PitcherId: homePitcher,
+				BatterGameYear: awayBatterGameYear,
 				BatterId:  awayBatter,
+				PitcherGameYear:  homePitcherGameYear,
+				PitcherId: homePitcher,
 				Strikes:   0,
 				Balls:     0,
 			}})
@@ -76,7 +79,7 @@ func SimulateGame(in []models.GameData) []models.GameResult {
 				awayPaResult, awayScore, awayBaseState, topOuts,
 			)
 
-			fmt.Println("Batter #:", awayBatterNumber, "| Event:", awayPaResult[0].EventType[0], "| Base State:", awayBaseState[0], awayBaseState[1], awayBaseState[2], "| Score:", awayScore, "-", homeScore)
+      fmt.Println("Batter #:", awayBatterNumber, "| Event:", awayPaResult[0].EventType[0], " | EV:", awayPaResult[0].ExitVelocity[0],  "| Base State:", awayBaseState[0], awayBaseState[1], awayBaseState[2], "| Score:", awayScore, "-", homeScore)
 
 			gameRes = append(gameRes, BuildGameResult(awayPaResult, atBatNumber, inning, "Top", topOuts, awayBaseState, awayScore, homeScore))
 			awayBatterNumber++
@@ -94,11 +97,13 @@ func SimulateGame(in []models.GameData) []models.GameResult {
 			homeBatter := homeLineup[homeBatterNumber]
       homeBatterGameYear := homeLineupGameYear[homeBatterNumber]
 			homePaResult := SimulateAtBat([]models.PlateAppearanceData{{
-				GameYear: homeBatterGameYear,
-				PitcherId: awayPitcher,
+				BatterGameYear: homeBatterGameYear,
 				BatterId:  homeBatter,
+				PitcherGameYear:  awayPitcherGameYear,
+				PitcherId: awayPitcher,
 				Strikes:   0,
 				Balls:     0,
+
 			}})
 
 			atBatNumber++
@@ -106,14 +111,14 @@ func SimulateGame(in []models.GameData) []models.GameResult {
 				homePaResult, homeScore, homeBaseState, botOuts,
 			)
 
-			fmt.Println("Batter #:", homeBatterNumber, "| Event:", homePaResult[0].EventType[0], "| Base State:", homeBaseState[0], homeBaseState[1], homeBaseState[2], "| Score:", awayScore, "-", homeScore)
+      fmt.Println("Batter #:", homeBatterNumber, "| Event:", homePaResult[0].EventType[0], "| EV:", homePaResult[0].ExitVelocity[0], "| Base State:", homeBaseState[0], homeBaseState[1], homeBaseState[2], "| Score:", awayScore, "-", homeScore)
 
 			gameRes = append(gameRes, BuildGameResult(homePaResult, atBatNumber, inning, "Bot", botOuts, homeBaseState, awayScore, homeScore))
 			homeBatterNumber++
 
 			if inning >= 9 && homeScore > awayScore {
 				fmt.Println("Home team wins (walk-off):", homeScore, "-", awayScore)
-postGameResults(gameRes, db)
+        postGameResults(gameRes, db)
 				return gameRes
 			}
 		}
@@ -128,7 +133,6 @@ postGameResults(gameRes, db)
 		inning++
 	}
 
-postGameResults(gameRes, db)
 	return gameRes
 }
 

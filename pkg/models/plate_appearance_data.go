@@ -2,9 +2,10 @@ package models
 
 
 type PlateAppearanceData struct { 
-  GameYear int
-  PitcherId int
+  BatterGameYear int
   BatterId int
+  PitcherGameYear int
+  PitcherId int
   Strikes int
   Balls int
 }
