@@ -34,34 +34,33 @@ func main() {
 
 
 game_result := sim.SimulateGame([]models.GameData{
-{
-    // Yankees (Home)
-    HomeBatter1Id: 542932, HomeBatter1GameYear: 2024,           
-    HomeBatter2Id: 665828, HomeBatter2GameYear: 2024,     
-    HomeBatter3Id: 592450, HomeBatter3GameYear: 2024,         
-    HomeBatter4Id: 665862, HomeBatter4GameYear: 2024,   
-    HomeBatter5Id: 605204, HomeBatter5GameYear: 2024,           
-    HomeBatter6Id: 691176, HomeBatter6GameYear: 2024,     
-    HomeBatter7Id: 701538, HomeBatter7GameYear: 2024,           
-    HomeBatter8Id: 663330, HomeBatter8GameYear: 2024,
-    HomeBatter9Id: 663757, HomeBatter9GameYear: 2024,
+    {
+        // Yankees (Home)
+        HomeBatter1Id: 592450, HomeBatter1GameYear: 2024, // Aaron Judge
+        HomeBatter2Id: 665862, HomeBatter2GameYear: 2024, // Juan Soto
+        HomeBatter3Id: 605204, HomeBatter3GameYear: 2024, // Giancarlo Stanton
+        HomeBatter4Id: 543760, HomeBatter4GameYear: 2024, // Anthony Rizzo
+        HomeBatter5Id: 547180, HomeBatter5GameYear: 2024, // DJ LeMahieu
+        HomeBatter6Id: 666158, HomeBatter6GameYear: 2024, // Gleyber Torres
+        HomeBatter7Id: 663330, HomeBatter7GameYear: 2024, // Oswaldo Cabrera
+        HomeBatter8Id: 663757, HomeBatter8GameYear: 2024, // Anthony Volpe
+        HomeBatter9Id: 701538, HomeBatter9GameYear: 2024, // Austin Wells
 
-    HomeStartingPitcherId: 543037, HomeStartingPitcherGameYear: 2024,
+        HomeStartingPitcherId: 543037, HomeStartingPitcherGameYear: 2024, // Gerrit Cole
 
-    // Dodgers (Away)
-    AwayBatter1Id: 605141, AwayBatter1GameYear: 2024,         
-    AwayBatter2Id: 669242, AwayBatter2GameYear: 2024,
-    AwayBatter3Id: 518692, AwayBatter3GameYear: 2024,      
-    AwayBatter4Id: 606192, AwayBatter4GameYear: 2024,
-    AwayBatter5Id: 571771, AwayBatter5GameYear: 2024,
-    AwayBatter6Id: 595281, AwayBatter6GameYear: 2024,
-    AwayBatter7Id: 666158, AwayBatter7GameYear: 2024,
-    AwayBatter8Id: 676439, AwayBatter8GameYear: 2024,
-    AwayBatter9Id: 605131, AwayBatter9GameYear: 2024,        
+        // Dodgers (Away)
+        AwayBatter1Id: 660271, AwayBatter1GameYear: 2024, // Mookie Betts
+        AwayBatter2Id: 660271, AwayBatter2GameYear: 2024, // Shohei Ohtani
+        AwayBatter3Id: 547180, AwayBatter3GameYear: 2024, // Freddie Freeman
+        AwayBatter4Id: 606192, AwayBatter4GameYear: 2024, // Will Smith
+        AwayBatter5Id: 605141, AwayBatter5GameYear: 2024, // Max Muncy
+        AwayBatter6Id: 669242, AwayBatter6GameYear: 2024, // Gavin Lux
+        AwayBatter7Id: 518692, AwayBatter7GameYear: 2024, // Chris Taylor
+        AwayBatter8Id: 571771, AwayBatter8GameYear: 2024, // James Outman
+        AwayBatter9Id: 595281, AwayBatter9GameYear: 2024, // Miguel Vargas
 
-    AwayStartingPitcherId: 607192, AwayStartingPitcherGameYear: 2024,
-},
-
+        AwayStartingPitcherId: 607192, AwayStartingPitcherGameYear: 2024, // Walker Buehler
+    },
 })
 
 

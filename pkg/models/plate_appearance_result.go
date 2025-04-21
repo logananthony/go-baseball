@@ -23,6 +23,7 @@ type PlateAppearanceResult struct {
   IsSwing []bool
   IsContact []string
   ExitVelocity []float64
+  LaunchAngle []float64
   EventType []string
 }
 
