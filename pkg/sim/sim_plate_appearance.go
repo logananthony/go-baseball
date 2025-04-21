@@ -110,6 +110,7 @@ func SimulateAtBat(in []models.PlateAppearanceData) []models.PlateAppearanceResu
     is_swing_sequence := []bool {}
     is_contact_sequence := []string {}
     exit_velocity_sequence := []float64 {}
+    launch_angle_sequence := []float64 {}
     event_type_sequence := []string {}
 
 
@@ -128,21 +129,33 @@ func SimulateAtBat(in []models.PlateAppearanceData) []models.PlateAppearanceResu
       is_contact_result := SimulateContactPercentage(batterContactProbs, *batterStands.BatSide, *pitcherThrows.PitchHand, pitch_type_result, location_velo_result[0], location_velo_result[1])
       event_type_result := SimulateBatterHitType(batterHitProbs, *batterStands.BatSide, *pitcherThrows.PitchHand, pitch_type_result, location_velo_result[0], location_velo_result[1], location_velo_result[2])
 
-evRows := fetcher.FetchEVDistributions(
-	db,
-	in[0].BatterGameYear,
-	in[0].BatterId,
-	*batterStands.BatSide,
-	*pitcherThrows.PitchHand,
-	utils.StrToNull(event_type_result),
-	utils.StrToNull(pitch_type_result),
-	utils.IntToNull(zone_result), // If zone_result is -1, it'll convert to NULL
-	utils.StrToNull(utils.GetVelocityBucket(location_velo_result[2])),
-)
+      evRows := fetcher.FetchEVDistributions(
+        db,
+        in[0].BatterGameYear,
+        in[0].BatterId,
+        *batterStands.BatSide,
+        *pitcherThrows.PitchHand,
+        utils.StrToNull(event_type_result),
+        utils.StrToNull(pitch_type_result),
+        utils.IntToNull(zone_result), // If zone_result is -1, it'll convert to NULL
+        utils.StrToNull(utils.GetVelocityBucket(location_velo_result[2])),
+      )
+      agg_ev := AggregateEVDistributions(evRows)
+      ev_result := SampleFromAggregatedDistribution(agg_ev)
 
-
-      agg := AggregateEVDistributions(evRows)
-      ev_result := SampleFromAggregatedDistribution(agg)
+      laRows := fetcher.FetchLADistributions(
+        db,
+        in[0].BatterGameYear,
+        in[0].BatterId,
+        *batterStands.BatSide,
+        *pitcherThrows.PitchHand,
+        utils.StrToNull(event_type_result),
+        utils.IntToNull(zone_result), // If zone_result is -1, it'll convert to NULL
+        utils.StrToNull(utils.GetEVBucket(ev_result)),
+      )
+      agg_la := AggregateLADistributions(laRows)
+      la_result := SampleFromAggregatedLADistribution(agg_la)
+      
     
       pitcher_game_year_sequence = append(pitcher_game_year_sequence, in[0].PitcherGameYear)
       batter_game_year_sequence = append(batter_game_year_sequence, in[0].BatterGameYear)
@@ -178,6 +191,7 @@ evRows := fetcher.FetchEVDistributions(
           case "ball_in_play":
                 event_type_sequence = append(event_type_sequence, event_type_result)
                 exit_velocity_sequence = append(exit_velocity_sequence, ev_result)
+                launch_angle_sequence = append(launch_angle_sequence, la_result)
                 return []models.PlateAppearanceResult{{
                   PitcherGameYear: pitcher_game_year_sequence,
                   PitcherFullName: pitcher_full_name_sequence,
@@ -199,13 +213,11 @@ evRows := fetcher.FetchEVDistributions(
                   IsSwing: is_swing_sequence,
                   IsContact: is_contact_sequence,
                   ExitVelocity: exit_velocity_sequence,
+                  LaunchAngle: launch_angle_sequence, 
                   EventType: event_type_sequence,
 
                 }}
                 
-
-
-
               // Let it resolve in your end condition (put in play)
           }
 
@@ -227,6 +239,7 @@ evRows := fetcher.FetchEVDistributions(
 
             event_type_sequence = append(event_type_sequence, "strikeout")
             exit_velocity_sequence = append(exit_velocity_sequence, 0)
+            launch_angle_sequence = append(launch_angle_sequence, 0)
             return []models.PlateAppearanceResult{{
                 PitcherGameYear: pitcher_game_year_sequence,
                 PitcherFullName: pitcher_full_name_sequence,
@@ -248,11 +261,13 @@ evRows := fetcher.FetchEVDistributions(
                 IsSwing: is_swing_sequence,
                 IsContact: is_contact_sequence,
                 ExitVelocity: exit_velocity_sequence,
+                LaunchAngle: launch_angle_sequence, 
                 EventType: event_type_sequence,
             }}
       case balls == 4:
           event_type_sequence = append(event_type_sequence, "walk")
           exit_velocity_sequence = append(exit_velocity_sequence, 0)
+          launch_angle_sequence = append(launch_angle_sequence, 0)
             return []models.PlateAppearanceResult{{
                 PitcherGameYear: pitcher_game_year_sequence,
                 PitcherFullName: pitcher_full_name_sequence,
@@ -274,6 +289,7 @@ evRows := fetcher.FetchEVDistributions(
                 IsSwing: is_swing_sequence,
                 IsContact: is_contact_sequence,
                 ExitVelocity: exit_velocity_sequence,
+                LaunchAngle: launch_angle_sequence, 
                 EventType: event_type_sequence,
           }}
 
