@@ -44,7 +44,7 @@ func SimulateGame(in []models.GameData) []models.GameResult {
 	awayPitcher := in[0].AwayStartingPitcherId
   awayPitcherGameYear := in[0].AwayStartingPitcherGameYear
 
-	inning := 1
+	inning := 7
 	awayScore := 0
 	homeScore := 0
 	awayBatterNumber := 0
