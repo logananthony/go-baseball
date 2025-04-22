@@ -42,7 +42,7 @@ game_result := sim.SimulateGame([]models.GameData{
         HomeBatter4Id: 543760, HomeBatter4GameYear: 2024, // Anthony Rizzo
         HomeBatter5Id: 547180, HomeBatter5GameYear: 2024, // DJ LeMahieu
         HomeBatter6Id: 666158, HomeBatter6GameYear: 2024, // Gleyber Torres
-        HomeBatter7Id: 663330, HomeBatter7GameYear: 2024, // Oswaldo Cabrera
+        HomeBatter7Id: 660271, HomeBatter7GameYear: 2024, // Oswaldo Cabrera
         HomeBatter8Id: 663757, HomeBatter8GameYear: 2024, // Anthony Volpe
         HomeBatter9Id: 701538, HomeBatter9GameYear: 2024, // Austin Wells
 
