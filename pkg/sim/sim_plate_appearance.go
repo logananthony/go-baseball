@@ -175,11 +175,12 @@ func SimulateAtBat(in []models.PlateAppearanceData) []models.PlateAppearanceResu
       strike_sequence = append(strike_sequence, strikes)
       ball_sequence = append(ball_sequence, balls)
       pitch_count_sequence = append(pitch_count_sequence, pitch_count)
+      is_contact_sequence = append(is_contact_sequence, is_contact_result)
 
 
       if is_swing_result {
           // Batter swung
-          is_contact_sequence = append(is_contact_sequence, is_contact_result)
+          //is_contact_sequence = append(is_contact_sequence, is_contact_result)
           
           switch is_contact_result {
               case "swinging_strike":
@@ -189,7 +190,7 @@ func SimulateAtBat(in []models.PlateAppearanceData) []models.PlateAppearanceResu
                       strikes += 1 // foul with less than 2 strikes
                   }
               case "ball_in_play":
-                    is_contact_sequence = append(is_contact_sequence, is_contact_result)
+                    //is_contact_sequence = append(is_contact_sequence, is_contact_result)
                     event_type_sequence = append(event_type_sequence, event_type_result)
                     exit_velocity_sequence = append(exit_velocity_sequence, ev_result)
                     launch_angle_sequence = append(launch_angle_sequence, la_result)
@@ -238,8 +239,6 @@ func SimulateAtBat(in []models.PlateAppearanceData) []models.PlateAppearanceResu
       case strikes == 3:
 
             event_type_sequence = append(event_type_sequence, "strikeout")
-            exit_velocity_sequence = append(exit_velocity_sequence, 0)
-            launch_angle_sequence = append(launch_angle_sequence, 0)
             return []models.PlateAppearanceResult{{
                 PitcherGameYear: pitcher_game_year_sequence,
                 PitcherFullName: pitcher_full_name_sequence,
@@ -266,8 +265,6 @@ func SimulateAtBat(in []models.PlateAppearanceData) []models.PlateAppearanceResu
             }}
       case balls == 4:
           event_type_sequence = append(event_type_sequence, "walk")
-          exit_velocity_sequence = append(exit_velocity_sequence, 0)
-          launch_angle_sequence = append(launch_angle_sequence, 0)
             return []models.PlateAppearanceResult{{
                 PitcherGameYear: pitcher_game_year_sequence,
                 PitcherFullName: pitcher_full_name_sequence,
