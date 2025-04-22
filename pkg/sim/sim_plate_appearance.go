@@ -182,41 +182,41 @@ func SimulateAtBat(in []models.PlateAppearanceData) []models.PlateAppearanceResu
           is_contact_sequence = append(is_contact_sequence, is_contact_result)
           
           switch is_contact_result {
-          case "swinging_strike":
-              strikes += 1
-          case "foul":
-              if strikes < 2 {
-                  strikes += 1 // foul with less than 2 strikes
-              }
-          case "ball_in_play":
-                event_type_sequence = append(event_type_sequence, event_type_result)
-                exit_velocity_sequence = append(exit_velocity_sequence, ev_result)
-                launch_angle_sequence = append(launch_angle_sequence, la_result)
-                return []models.PlateAppearanceResult{{
-                  PitcherGameYear: pitcher_game_year_sequence,
-                  PitcherFullName: pitcher_full_name_sequence,
-                  PitcherId: pitcherid_sequence,
-                  BatterGameYear: batter_game_year_sequence,
-                  BatterFullName: batter_full_name_sequence,
-                  BatterId: batterid_sequence,
-                  BatterStands: stand_sequence,
-                  PitcherThrows: throws_sequence,
-                  Strikes: strike_sequence, 
-                  Balls: ball_sequence, 
-                  PitchCount: pitch_count_sequence,
-                  PitchType: pitch_type_sequence,
-                  PlateX: plate_x_sequence,
-                  PlateZ: plate_z_sequence, 
-                  Zone: zone_sequence,
-                  Velocity: velocity_sequence,
-                  IsStrike: is_strike_sequence,
-                  IsSwing: is_swing_sequence,
-                  IsContact: is_contact_sequence,
-                  ExitVelocity: exit_velocity_sequence,
-                  LaunchAngle: launch_angle_sequence, 
-                  EventType: event_type_sequence,
-
-                }}
+              case "swinging_strike":
+                  strikes += 1
+              case "foul":
+                  if strikes < 2 {
+                      strikes += 1 // foul with less than 2 strikes
+                  }
+              case "ball_in_play":
+                    is_contact_sequence = append(is_contact_sequence, is_contact_result)
+                    event_type_sequence = append(event_type_sequence, event_type_result)
+                    exit_velocity_sequence = append(exit_velocity_sequence, ev_result)
+                    launch_angle_sequence = append(launch_angle_sequence, la_result)
+                    return []models.PlateAppearanceResult{{
+                        PitcherGameYear: pitcher_game_year_sequence,
+                        PitcherFullName: pitcher_full_name_sequence,
+                        PitcherId: pitcherid_sequence,
+                        BatterGameYear: batter_game_year_sequence,
+                        BatterFullName: batter_full_name_sequence,
+                        BatterId: batterid_sequence,
+                        BatterStands: stand_sequence,
+                        PitcherThrows: throws_sequence,
+                        Strikes: strike_sequence, 
+                        Balls: ball_sequence, 
+                        PitchCount: pitch_count_sequence,
+                        PitchType: pitch_type_sequence,
+                        PlateX: plate_x_sequence,
+                        PlateZ: plate_z_sequence, 
+                        Zone: zone_sequence,
+                        Velocity: velocity_sequence,
+                        IsStrike: is_strike_sequence,
+                        IsSwing: is_swing_sequence,
+                        IsContact: is_contact_sequence,
+                        ExitVelocity: exit_velocity_sequence,
+                        LaunchAngle: launch_angle_sequence, 
+                        EventType: event_type_sequence,
+                    }}
                 
               // Let it resolve in your end condition (put in play)
           }
