@@ -46,7 +46,7 @@ game_result := sim.SimulateGame([]models.GameData{
         HomeBatter8Id: 663757, HomeBatter8GameYear: 2024, // Anthony Volpe
         HomeBatter9Id: 701538, HomeBatter9GameYear: 2024, // Austin Wells
 
-        HomeStartingPitcherId: 543037, HomeStartingPitcherGameYear: 2024, // Gerrit Cole
+        HomeStartingPitcherId: 601713, HomeStartingPitcherGameYear: 2024, // Gerrit Cole
 
         // Dodgers (Away)
         AwayBatter1Id: 660271, AwayBatter1GameYear: 2024, // Mookie Betts
@@ -59,7 +59,7 @@ game_result := sim.SimulateGame([]models.GameData{
         AwayBatter8Id: 571771, AwayBatter8GameYear: 2024, // James Outman
         AwayBatter9Id: 595281, AwayBatter9GameYear: 2024, // Miguel Vargas
 
-        AwayStartingPitcherId: 607192, AwayStartingPitcherGameYear: 2024, // Walker Buehler
+        AwayStartingPitcherId: 656302, AwayStartingPitcherGameYear: 2024, // Walker Buehler
     },
 })
 
