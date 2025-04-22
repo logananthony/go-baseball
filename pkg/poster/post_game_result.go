@@ -53,7 +53,7 @@ func InsertGameResult(db *sql.DB, gameId string, gameYear int, result models.Gam
 
 		for i := 0; i < numPitches; i++ {
 			var isContact interface{}
-			if pa.IsSwing[i] && i < len(pa.IsContact) {
+			if pa.IsSwing[i] && i <= len(pa.IsContact) {
 				isContact = pa.IsContact[i]
 			} else {
 				isContact = nil

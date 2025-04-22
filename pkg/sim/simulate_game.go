@@ -87,6 +87,7 @@ func SimulateGame(in []models.GameData) []models.GameResult {
 		}
 
 		if inning >= 9 && homeScore > awayScore {
+      postGameResults(gameRes, db)
 			fmt.Println("Home team wins:", homeScore, "-", awayScore)
 			break
 		}
