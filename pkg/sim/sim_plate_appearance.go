@@ -111,6 +111,7 @@ func SimulateAtBat(in []models.PlateAppearanceData) []models.PlateAppearanceResu
     is_contact_sequence := []string {}
     exit_velocity_sequence := []float64 {}
     launch_angle_sequence := []float64 {}
+    spray_angle_sequence := []float64 {}
     event_type_sequence := []string {}
 
 
@@ -150,12 +151,25 @@ func SimulateAtBat(in []models.PlateAppearanceData) []models.PlateAppearanceResu
         *batterStands.BatSide,
         *pitcherThrows.PitchHand,
         utils.StrToNull(event_type_result),
-        utils.IntToNull(zone_result), // If zone_result is -1, it'll convert to NULL
+        utils.IntToNull(zone_result),
         utils.StrToNull(utils.GetEVBucket(ev_result)),
       )
       agg_la := AggregateLADistributions(laRows)
       la_result := SampleFromAggregatedLADistribution(agg_la)
       
+      sprayRows := fetcher.FetchSprayDistributions(
+        db,
+        in[0].BatterGameYear,
+        in[0].BatterId,
+        *batterStands.BatSide,
+        *pitcherThrows.PitchHand,
+        utils.StrToNull(event_type_result),
+        utils.IntToNull(zone_result),
+        utils.StrToNull(utils.GetEVBucket(ev_result)),
+        utils.StrToNull(utils.GetLaunchAngleBucket(la_result)),
+      )
+      agg_spray := AggregateSprayDistributions(sprayRows)
+      spray_result := SampleFromAggregatedSprayDistribution(agg_spray)
     
       pitcher_game_year_sequence = append(pitcher_game_year_sequence, in[0].PitcherGameYear)
       batter_game_year_sequence = append(batter_game_year_sequence, in[0].BatterGameYear)
@@ -176,13 +190,13 @@ func SimulateAtBat(in []models.PlateAppearanceData) []models.PlateAppearanceResu
       ball_sequence = append(ball_sequence, balls)
       pitch_count_sequence = append(pitch_count_sequence, pitch_count)
       is_contact_sequence = append(is_contact_sequence, is_contact_result)
-                    exit_velocity_sequence = append(exit_velocity_sequence, ev_result)
-                    launch_angle_sequence = append(launch_angle_sequence, la_result)
+      exit_velocity_sequence = append(exit_velocity_sequence, ev_result)
+      launch_angle_sequence = append(launch_angle_sequence, la_result)
+      spray_angle_sequence = append(spray_angle_sequence, spray_result)
 
 
       if is_swing_result {
           // Batter swung
-          //is_contact_sequence = append(is_contact_sequence, is_contact_result)
           
           switch is_contact_result {
               case "swinging_strike":
@@ -192,10 +206,7 @@ func SimulateAtBat(in []models.PlateAppearanceData) []models.PlateAppearanceResu
                       strikes += 1 // foul with less than 2 strikes
                   }
               case "ball_in_play":
-                    //is_contact_sequence = append(is_contact_sequence, is_contact_result)
                     event_type_sequence = append(event_type_sequence, event_type_result)
-                    //exit_velocity_sequence = append(exit_velocity_sequence, ev_result)
-                    //launch_angle_sequence = append(launch_angle_sequence, la_result)
                     return []models.PlateAppearanceResult{{
                         PitcherGameYear: pitcher_game_year_sequence,
                         PitcherFullName: pitcher_full_name_sequence,
@@ -218,6 +229,7 @@ func SimulateAtBat(in []models.PlateAppearanceData) []models.PlateAppearanceResu
                         IsContact: is_contact_sequence,
                         ExitVelocity: exit_velocity_sequence,
                         LaunchAngle: launch_angle_sequence, 
+                        SprayAngle: spray_angle_sequence,
                         EventType: event_type_sequence,
                     }}
                 
@@ -241,8 +253,6 @@ func SimulateAtBat(in []models.PlateAppearanceData) []models.PlateAppearanceResu
       case strikes == 3:
 
             event_type_sequence = append(event_type_sequence, "strikeout")
-            //exit_velocity_sequence = append(exit_velocity_sequence, 0)
-            //launch_angle_sequence = append(launch_angle_sequence, 0)
             return []models.PlateAppearanceResult{{
                 PitcherGameYear: pitcher_game_year_sequence,
                 PitcherFullName: pitcher_full_name_sequence,
@@ -265,12 +275,11 @@ func SimulateAtBat(in []models.PlateAppearanceData) []models.PlateAppearanceResu
                 IsContact: is_contact_sequence,
                 ExitVelocity: exit_velocity_sequence,
                 LaunchAngle: launch_angle_sequence, 
+                SprayAngle: spray_angle_sequence,
                 EventType: event_type_sequence,
             }}
       case balls == 4:
           event_type_sequence = append(event_type_sequence, "walk")
-          //exit_velocity_sequence = append(exit_velocity_sequence, 0)
-          //launch_angle_sequence = append(launch_angle_sequence, 0)
             return []models.PlateAppearanceResult{{
                 PitcherGameYear: pitcher_game_year_sequence,
                 PitcherFullName: pitcher_full_name_sequence,
@@ -293,6 +302,7 @@ func SimulateAtBat(in []models.PlateAppearanceData) []models.PlateAppearanceResu
                 IsContact: is_contact_sequence,
                 ExitVelocity: exit_velocity_sequence,
                 LaunchAngle: launch_angle_sequence, 
+                SprayAngle: spray_angle_sequence,
                 EventType: event_type_sequence,
           }}
 
