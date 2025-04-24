@@ -80,6 +80,13 @@ func InsertGameResult(db *sql.DB, gameId string, gameYear int, result models.Gam
         launchAngle = nil
       }
 
+      var sprayAngle any
+      if i == numPitches-1 && len(pa.SprayAngle) > 0 && i < len(pa.IsContact) && pa.IsContact[i] == "ball_in_play" {
+        sprayAngle = pa.SprayAngle[0]
+      } else {
+        sprayAngle = nil
+      }
+
 			_, err := db.Exec(`
               INSERT INTO game_result (
                 game_id, game_year,
@@ -92,7 +99,7 @@ func InsertGameResult(db *sql.DB, gameId string, gameYear int, result models.Gam
                 strikes, balls, pitch_count,
                 pitch_type, plate_x, plate_z, zone,
                 velocity, is_strike, is_swing, is_contact,
-                event_type, exit_velocity, launch_angle
+                event_type, exit_velocity, launch_angle, spray_angle
               ) VALUES (
                 $1, $2, $3, $4, $5,
                 $6, $7, $8, $9,
@@ -103,7 +110,7 @@ func InsertGameResult(db *sql.DB, gameId string, gameYear int, result models.Gam
                 $20, $21, $22,
                 $23, $24, $25, $26,
                 $27, $28, $29, $30,
-                $31, $32, $33
+                $31, $32, $33, $34
               )
           `,
 				gameId, gameYear,
@@ -116,7 +123,7 @@ func InsertGameResult(db *sql.DB, gameId string, gameYear int, result models.Gam
 				pa.Strikes[i], pa.Balls[i], pa.PitchCount[i],
 				pa.PitchType[i], pa.PlateX[i], pa.PlateZ[i], pa.Zone[i],
 				pa.Velocity[i], pa.IsStrike[i], pa.IsSwing[i], isContact,
-				eventType, exitVelocity, launchAngle,
+				eventType, exitVelocity, launchAngle, sprayAngle,
 			)
 
 			if err != nil {

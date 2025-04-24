@@ -24,6 +24,7 @@ type PlateAppearanceResult struct {
   IsContact []string
   ExitVelocity []float64
   LaunchAngle []float64
+  SprayAngle []float64
   EventType []string
 }
 

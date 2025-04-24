@@ -80,7 +80,7 @@ func SimulateGame(in []models.GameData) []models.GameResult {
 			)
 
       fmt.Println("Batter #:", awayBatterNumber, "| Event:", awayPaResult[0].EventType[0], " | EV:", awayPaResult[0].ExitVelocity[0], " | LA:", awayPaResult[0].LaunchAngle[0],
-      "| Base State:", awayBaseState[0], awayBaseState[1], awayBaseState[2], "| Score:", awayScore, "-", homeScore)
+      " | SA:", awayPaResult[0].SprayAngle[0],  "| Base State:", awayBaseState[0], awayBaseState[1], awayBaseState[2], "| Score:", awayScore, "-", homeScore)
 
 			gameRes = append(gameRes, BuildGameResult(awayPaResult, atBatNumber, inning, "Top", topOuts, awayBaseState, awayScore, homeScore))
 			awayBatterNumber++
@@ -114,7 +114,7 @@ func SimulateGame(in []models.GameData) []models.GameResult {
 			)
 
       fmt.Println("Batter #:", homeBatterNumber, "| Event:", homePaResult[0].EventType[0], "| EV:", homePaResult[0].ExitVelocity[0], "| LA:", homePaResult[0].LaunchAngle[0],
-      "| Base State:", homeBaseState[0], homeBaseState[1], homeBaseState[2], "| Score:", awayScore, "-", homeScore)
+      "| SA:", homePaResult[0].SprayAngle[0],  "| Base State:", homeBaseState[0], homeBaseState[1], homeBaseState[2], "| Score:", awayScore, "-", homeScore)
 
 			gameRes = append(gameRes, BuildGameResult(homePaResult, atBatNumber, inning, "Bot", botOuts, homeBaseState, awayScore, homeScore))
 			homeBatterNumber++
