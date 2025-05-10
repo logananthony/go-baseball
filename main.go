@@ -46,7 +46,7 @@ game_result := sim.SimulateGame([]models.GameData{
         HomeBatter8Id: 663757, HomeBatter8GameYear: 2024, // Anthony Volpe
         HomeBatter9Id: 701538, HomeBatter9GameYear: 2024, // Austin Wells
 
-        HomeStartingPitcherId: 678394, HomeStartingPitcherGameYear: 2024, // Gerrit Cole
+       HomeStartingPitcherId: 678394, HomeStartingPitcherGameYear: 2024, // Gerrit Cole
 
         // Dodgers (Away)
         AwayBatter1Id: 660271, AwayBatter1GameYear: 2024, // Mookie Betts

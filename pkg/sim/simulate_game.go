@@ -2,13 +2,20 @@ package sim
 
 import (
 	"fmt"
+
 	"github.com/logananthony/go-baseball/pkg/config"
+	//"github.com/logananthony/go-baseball/pkg/utils"
+	//"github.com/logananthony/go-baseball/pkg/fetcher"
 	"github.com/logananthony/go-baseball/pkg/models"
 	"github.com/logananthony/go-baseball/pkg/poster"
+
+	//"github.com/logananthony/go-baseball/pkg/utils"
+	// "github.com/davecgh/go-spew/spew"
 	//"github.com/logananthony/go-baseball/pkg/fetcher"
-  "database/sql"
-  "github.com/google/uuid"
-  //"log"
+	"database/sql"
+
+	"github.com/google/uuid"
+	//"log"
 )
 
 func SimulateGame(in []models.GameData) []models.GameResult {
@@ -123,7 +130,7 @@ func SimulateGame(in []models.GameData) []models.GameResult {
 				fmt.Println("Home team wins (walk-off):", homeScore, "-", awayScore)
         postGameResults(gameRes, db)
 				return gameRes
-			}
+			} 
 		}
 
 		// If 9 or later and not tied, game ends
@@ -140,59 +147,99 @@ func SimulateGame(in []models.GameData) []models.GameResult {
 }
 
 func ProcessPlateAppearance(paResult []models.PlateAppearanceResult, score int, baseState []bool, outs int) (int, []bool, int) {
+
+  db := config.ConnectDB()
+  defer db.Close()
+
 	if len(paResult) == 0 || len(paResult[0].EventType) == 0 {
-		return score, baseState, outs
+		return score, baseState, outs 
 	}
 
 	switch paResult[0].EventType[0] {
-	case "walk":
-		if !baseState[0] {
-			baseState[0] = true
-    } else if baseState[0] {
-      baseState[0] = true
-      baseState[1] = baseState[0]
-    } else if baseState[0] && baseState[1] {
-      baseState[0] = true
-      baseState[1] = baseState[0]
-      baseState[2] = baseState[1]
-    } else if baseState[0] && baseState[1] && baseState[2] {
-      baseState[0] = true
-      baseState[1] = baseState[0]
-      baseState[2] = baseState[1]
-      baseState[3] = baseState[2]
+  case "walk":
+    // Bases loaded situation -> force in a run
+    if baseState[0] && baseState[1] && baseState[2] {
+        baseState[3] = true // Runner scores
+        baseState[2] = true // Runner from 2B to 3B
+        baseState[1] = true // Runner from 1B to 2B
+        baseState[0] = true // Batter to 1B
+    } else {
+        // Move runners backwards: 2B to 3B, 1B to 2B
+        if baseState[1] && baseState[2] {
+            baseState[2] = true // Runner from 2B to 3B
+            baseState[1] = true // Runner from 1B to 2B
+            baseState[0] = true // Batter to 1B
+        } else if baseState[1] {
+            baseState[2] = baseState[1]
+            baseState[1] = baseState[0]
+            baseState[0] = true
+        } else if baseState[0] {
+            baseState[1] = baseState[0]
+            baseState[0] = true
+        } else {
+            // No runners at all
+            baseState[0] = true
+        }
     }
-	case "single":
-		baseState[3] = baseState[2]
-		baseState[2] = baseState[1]
-		baseState[1] = baseState[0]
-		baseState[0] = true
-	case "double":
-		baseState[3] = baseState[1]
-		baseState[2] = baseState[0]
-		baseState[1] = true
-		baseState[0] = false
-	case "triple":
-		baseState[3] = baseState[0] || baseState[1] || baseState[2]
-		baseState[2] = true
-		baseState[1] = false
-		baseState[0] = false
-	case "home_run":
-		runs := 1
-		for i := 0; i <= 2; i++ {
-			if baseState[i] {
-				runs++
-				baseState[i] = false
-			}
-		}
-		score += runs
-	case "out", "strikeout":
-		outs++
-	}
 
-	if baseState[3] {
-		score++
-		baseState[3] = false
-	}
+      case "single", "double", "triple":
+          //n := utils.NTrue(baseState[0], baseState[1], baseState[2])
+          //if n < 1 {
+             // n = 1
+          //} 
+
+          priorBaseState := baseState
+          newBaseState := [4]bool{false, false, false, false}
+
+          for i := range baseState {
+
+              if priorBaseState[i] {
+                  var basesMoved int
+                  if paResult[0].EventType[0] == "single" {
+                      basesMoved = 1
+                  } else if paResult[0].EventType[0] == "double" {
+                      basesMoved = 2
+                  } else {
+                      basesMoved = 3
+                  }
+
+                  if i + basesMoved < 3 {
+                      newBaseState[i + basesMoved] = true 
+                  } else {
+                      score++
+                  }
+                  
+              } else {
+                      if paResult[0].EventType[0] == "single" {
+                          newBaseState[0] = true
+                      } else if paResult[0].EventType[0] == "double" {
+                          newBaseState[1] = true
+                      } else {
+                          newBaseState[2] = true
+                      }
+              baseState = newBaseState[:]
+                break
+              } 
+              baseState = newBaseState[:]
+          }
+
+    case "home_run":
+      runs := 1
+      for i := 0; i <= 2; i++ {
+        if baseState[i] {
+          runs++
+          baseState[i] = false
+        }
+      }
+      score += runs
+    case "out", "strikeout":
+      outs++
+    }
+
+    if baseState[3] {
+      score++
+      baseState[3] = false
+    }
 
 	return score, baseState, outs
 }
