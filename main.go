@@ -3,9 +3,24 @@ package main
 import (
     "github.com/logananthony/go-baseball/pkg/models"
     "github.com/logananthony/go-baseball/pkg/sim"
+    "github.com/joho/godotenv"
+    "log"
+    //"os"
 )
 
+func init() {
+    err := godotenv.Load()
+    if err != nil {
+        log.Println("No .env file found")
+    }
+}
+
 func main() {
+
+  err := godotenv.Load()
+    if err != nil {
+        log.Println("No .env file found, relying on system environment variables")
+    }
 
 game_result := sim.SimulateGame([]models.GameData{
     {
