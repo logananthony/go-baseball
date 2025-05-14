@@ -35,3 +35,11 @@ Too many problems in baseball analytics go unsolved because we just don’t have
 
 ```bash
 go run main.go
+```
+## Contact
+
+- Twitter: [@loganbanthony](https://twitter.com/loganbanthony)
+- Website: [loganbanthony.com](https://loganbanthony.com)
+
+## License
+Distributed under the Unlicense License. See LICENSE.txt for more information.
