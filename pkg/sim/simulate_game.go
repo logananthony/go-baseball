@@ -2,23 +2,22 @@ package sim
 
 import (
 	"fmt"
-
+	"math/rand"
+	//"github.com/davecgh/go-spew/spew"
 	"github.com/logananthony/go-baseball/pkg/config"
-	//"github.com/logananthony/go-baseball/pkg/utils"
-	//"github.com/logananthony/go-baseball/pkg/fetcher"
-	"github.com/logananthony/go-baseball/pkg/models"
-	"github.com/logananthony/go-baseball/pkg/poster"
-
-	//"github.com/logananthony/go-baseball/pkg/utils"
-	// "github.com/davecgh/go-spew/spew"
 	//"github.com/logananthony/go-baseball/pkg/fetcher"
 	"database/sql"
 
 	"github.com/google/uuid"
+	"github.com/logananthony/go-baseball/pkg/fetcher"
+	"github.com/logananthony/go-baseball/pkg/models"
+	"github.com/logananthony/go-baseball/pkg/poster"
+	"github.com/logananthony/go-baseball/pkg/utils"
 	//"log"
 )
 
 func SimulateGame(in []models.GameData) []models.GameResult {
+
 	db := config.ConnectDB()
 	defer db.Close()
 
@@ -46,25 +45,64 @@ func SimulateGame(in []models.GameData) []models.GameResult {
 		in[0].AwayBatter7GameYear, in[0].AwayBatter8GameYear, in[0].AwayBatter9GameYear,
 	}
 
-	homePitcher := in[0].HomeStartingPitcherId
-  homePitcherGameYear := in[0].HomeStartingPitcherGameYear
-	awayPitcher := in[0].AwayStartingPitcherId
-  awayPitcherGameYear := in[0].AwayStartingPitcherGameYear
 
-	inning := 7
-	awayScore := 3
-	homeScore := 0
-	awayBatterNumber := 0
-	homeBatterNumber := 0
-	atBatNumber := 0
+  homePitcherLineup := [][]int{
+	{in[0].HomeStartingPitcherId, in[0].HomeStartingPitcherGameYear},
+	{in[0].HomeBullpen1Id, in[0].HomeBullpen1GameYear},
+	{in[0].HomeBullpen2Id, in[0].HomeBullpen2GameYear},
+	{in[0].HomeBullpen3Id, in[0].HomeBullpen3GameYear},
+	{in[0].HomeBullpen4Id, in[0].HomeBullpen4GameYear},
+	{in[0].HomeBullpen5Id, in[0].HomeBullpen5GameYear},
+	{in[0].HomeBullpen6Id, in[0].HomeBullpen6GameYear},
+	{in[0].HomeBullpen7Id, in[0].HomeBullpen7GameYear},
+	{in[0].HomeBullpen8Id, in[0].HomeBullpen8GameYear},
+	{in[0].HomeBullpen9Id, in[0].HomeBullpen9GameYear},
+}
 
+  awayPitcherLineup := [][]int{
+	{in[0].AwayStartingPitcherId, in[0].AwayStartingPitcherGameYear},
+	{in[0].AwayBullpen1Id, in[0].AwayBullpen1GameYear},
+	{in[0].AwayBullpen2Id, in[0].AwayBullpen2GameYear},
+	{in[0].AwayBullpen3Id, in[0].AwayBullpen3GameYear},
+	{in[0].AwayBullpen4Id, in[0].AwayBullpen4GameYear},
+	{in[0].AwayBullpen5Id, in[0].AwayBullpen5GameYear},
+	{in[0].AwayBullpen6Id, in[0].AwayBullpen6GameYear},
+	{in[0].AwayBullpen7Id, in[0].AwayBullpen7GameYear},
+	{in[0].AwayBullpen8Id, in[0].AwayBullpen8GameYear},
+	{in[0].AwayBullpen9Id, in[0].AwayBullpen9GameYear},
+}
+
+
+  var homePitcher int
+  var homePitcherGameYear int
+  var awayPitcher int
+  var awayPitcherGameYear int
+
+  inning := 1
+  awayScore := 0
+  homeScore := 0
+  awayBatterNumber := 0
+  homeBatterNumber := 0
+  atBatNumber := 0
+  homePitcher = homePitcherLineup[0][0]
+  homePitcherGameYear = homePitcherLineup[0][1]
+  awayPitcher = awayPitcherLineup[0][0]
+  awayPitcherGameYear = awayPitcherLineup[0][1]
+
+
+  pitchingSubProbs, _ := fetcher.FetchPitchingSubstitutionProbs(db)
+
+ 
 	var gameRes []models.GameResult
 
 	for {
+
 		topOuts := 0
 		botOuts := 0
 		awayBaseState := []bool{false, false, false, false}
 		homeBaseState := []bool{false, false, false, false}
+    priorAwayScore := awayScore
+    priorHomeScore := homeScore
 
 		fmt.Println("Top Inning:", inning)
 
@@ -86,8 +124,29 @@ func SimulateGame(in []models.GameData) []models.GameResult {
 				awayPaResult, awayScore, awayBaseState, topOuts,
 			)
 
-      fmt.Println("Batter #:", awayBatterNumber, "| Event:", awayPaResult[0].EventType[0], " | EV:", awayPaResult[0].ExitVelocity[0], " | LA:", awayPaResult[0].LaunchAngle[0],
-      " | SA:", awayPaResult[0].SprayAngle[0],  "| Base State:", awayBaseState[0], awayBaseState[1], awayBaseState[2], "| Score:", awayScore, "-", homeScore)
+      inningRunsHome := awayScore - priorAwayScore
+      pullProbHome := utils.GetPullProbability(pitchingSubProbs, inning, awayScore, inningRunsHome)
+
+      var pitcherPulledHome = utils.IsSuccess(pullProbHome)
+
+      if pullProbHome != nil && pitcherPulledHome {
+        homePitcherLineup = utils.FilterSliceSlices(homePitcherLineup, homePitcher)
+        homePitcherChosenIndex := rand.Intn(len(homePitcherLineup))
+        homePitcher = homePitcherLineup[homePitcherChosenIndex][0]
+        homePitcherGameYear = homePitcherLineup[homePitcherChosenIndex][1]
+      } 
+
+
+      fmt.Println("Batter #:", awayBatterNumber, 
+                  "| Pitcher :", homePitcher,  
+                  "| Event:", awayPaResult[0].EventType[0], 
+                  "| EV:", awayPaResult[0].ExitVelocity[0], 
+                  "| LA:", awayPaResult[0].LaunchAngle[0],
+                  "| SA:", awayPaResult[0].SprayAngle[0],  
+                  "| Base State:", awayBaseState[0], awayBaseState[1], awayBaseState[2], 
+                  "| Score:", awayScore, "-", homeScore)
+                  //"| Inning Runs:", inningRunsHome, 
+                  //"| Pull Prob Home:", pullProbHome, pitcherPulledHome)
 
 			gameRes = append(gameRes, BuildGameResult(awayPaResult, atBatNumber, inning, "Top", topOuts, awayBaseState, awayScore, homeScore))
 			awayBatterNumber++
@@ -112,7 +171,6 @@ func SimulateGame(in []models.GameData) []models.GameResult {
 				PitcherId: awayPitcher,
 				Strikes:   0,
 				Balls:     0,
-
 			}})
 
 			atBatNumber++
@@ -120,8 +178,26 @@ func SimulateGame(in []models.GameData) []models.GameResult {
 				homePaResult, homeScore, homeBaseState, botOuts,
 			)
 
-      fmt.Println("Batter #:", homeBatterNumber, "| Event:", homePaResult[0].EventType[0], "| EV:", homePaResult[0].ExitVelocity[0], "| LA:", homePaResult[0].LaunchAngle[0],
-      "| SA:", homePaResult[0].SprayAngle[0],  "| Base State:", homeBaseState[0], homeBaseState[1], homeBaseState[2], "| Score:", awayScore, "-", homeScore)
+      inningRunsAway := homeScore - priorHomeScore
+      pullProbAway := utils.GetPullProbability(pitchingSubProbs, inning, homeScore, inningRunsAway)
+
+      var pitcherPulledAway = utils.IsSuccess(pullProbAway)
+
+      if pullProbAway != nil && pitcherPulledAway {
+        awayPitcherLineup = utils.FilterSliceSlices(awayPitcherLineup, awayPitcher)
+        awayPitcherChosenIndex := rand.Intn(len(awayPitcherLineup))
+        homePitcher = awayPitcherLineup[awayPitcherChosenIndex][0]
+        awayPitcherGameYear = awayPitcherLineup[awayPitcherChosenIndex][1]
+      } 
+
+      fmt.Println("Batter #:", homeBatterNumber, 
+                  "| Pitcher :", awayPitcher, 
+                  "| Event:", homePaResult[0].EventType[0], 
+                  "| EV:", homePaResult[0].ExitVelocity[0],
+                  "| LA:", homePaResult[0].LaunchAngle[0],
+                  "| SA:", homePaResult[0].SprayAngle[0],  
+                  "| Base State:", homeBaseState[0], homeBaseState[1], homeBaseState[2], 
+                  "| Score:", awayScore, "-", homeScore)
 
 			gameRes = append(gameRes, BuildGameResult(homePaResult, atBatNumber, inning, "Bot", botOuts, homeBaseState, awayScore, homeScore))
 			homeBatterNumber++
@@ -157,21 +233,26 @@ func ProcessPlateAppearance(paResult []models.PlateAppearanceResult, score int, 
 
 	switch paResult[0].EventType[0] {
   case "walk":
-    // Bases loaded situation -> force in a run
     if baseState[0] && baseState[1] && baseState[2] {
-        baseState[3] = true // Runner scores
-        baseState[2] = true // Runner from 2B to 3B
-        baseState[1] = true // Runner from 1B to 2B
-        baseState[0] = true // Batter to 1B
+        baseState[3] = true 
+        baseState[2] = true 
+        baseState[1] = true 
+        baseState[0] = true // Batter to B
     } else {
-        // Move runners backwards: 2B to 3B, 1B to 2B
         if baseState[1] && baseState[2] {
-            baseState[2] = true // Runner from 2B to 3B
-            baseState[1] = true // Runner from 1B to 2B
-            baseState[0] = true // Batter to 1B
-        } else if baseState[1] {
-            baseState[2] = baseState[1]
+            baseState[2] = true 
+            baseState[1] = true 
+            baseState[0] = true 
+        } else if baseState[0] && baseState[2] {
             baseState[1] = baseState[0]
+            baseState[0] = true
+        } else if baseState[0] && baseState[1] {
+            baseState[1] = baseState[0]
+            baseState[2] = baseState[1]
+            baseState[0] = true
+      } else if baseState[2] {
+            baseState[0] = true
+        } else if baseState[1] {
             baseState[0] = true
         } else if baseState[0] {
             baseState[1] = baseState[0]
@@ -183,10 +264,6 @@ func ProcessPlateAppearance(paResult []models.PlateAppearanceResult, score int, 
     }
 
       case "single", "double", "triple":
-          //n := utils.NTrue(baseState[0], baseState[1], baseState[2])
-          //if n < 1 {
-             // n = 1
-          //} 
 
           priorBaseState := baseState
           newBaseState := [4]bool{false, false, false, false}

@@ -1,37 +1,11 @@
 package main
  
 import (
-    //"github.com/logananthony/go-baseball/pkg/fetcher"
     "github.com/logananthony/go-baseball/pkg/models"
     "github.com/logananthony/go-baseball/pkg/sim"
-    //"github.com/logananthony/go-baseball/pkg/fetcher"
-    //"github.com/logananthony/go-baseball/pkg/config"
-    //"github.com/davecgh/go-spew/spew"
-    //_"github.com/lib/pq"
-	  //"database/sql"
-    //"github.com/jmoiron/sqlx"
-    //"log"
-    //"fmt"
-    //"encoding/json"
 )
 
 func main() {
-
-//  sim_results := sim.SimulateAtBat([]models.AtBatData{
-//    {
-//        GameYear: 2024,
-//        PitcherId: 628317,
-//        BatterId: 665742,
-//        Strikes: 0,
-//        Balls: 0,
-//    },
-//  })
-
-
-
-
-  //spew.Dump(sim_results)
-
 
 game_result := sim.SimulateGame([]models.GameData{
     {
@@ -46,7 +20,16 @@ game_result := sim.SimulateGame([]models.GameData{
         HomeBatter8Id: 663757, HomeBatter8GameYear: 2024, // Anthony Volpe
         HomeBatter9Id: 701538, HomeBatter9GameYear: 2024, // Austin Wells
 
-       HomeStartingPitcherId: 678394, HomeStartingPitcherGameYear: 2024, // Gerrit Cole
+        HomeStartingPitcherId: 678394, HomeStartingPitcherGameYear: 2024, // Gerrit Cole
+        HomeBullpen1Id: 695243, HomeBullpen1GameYear: 2024,
+        HomeBullpen2Id: 695243, HomeBullpen2GameYear: 2024,
+        HomeBullpen3Id: 695243, HomeBullpen3GameYear: 2024,
+        HomeBullpen4Id: 695243, HomeBullpen4GameYear: 2024,
+        HomeBullpen5Id: 695243, HomeBullpen5GameYear: 2024,
+        HomeBullpen6Id: 695243, HomeBullpen6GameYear: 2024,
+        HomeBullpen7Id: 695243, HomeBullpen7GameYear: 2024,
+        HomeBullpen8Id: 695243, HomeBullpen8GameYear: 2024,
+        HomeBullpen9Id: 695243, HomeBullpen9GameYear: 2024,
 
         // Dodgers (Away)
         AwayBatter1Id: 660271, AwayBatter1GameYear: 2024, // Mookie Betts
@@ -60,20 +43,20 @@ game_result := sim.SimulateGame([]models.GameData{
         AwayBatter9Id: 595281, AwayBatter9GameYear: 2024, // Miguel Vargas
 
         AwayStartingPitcherId: 678394, AwayStartingPitcherGameYear: 2024, // Walker Buehler
+        AwayBullpen1Id: 695243, AwayBullpen1GameYear: 2024,
+        AwayBullpen2Id: 695243, AwayBullpen2GameYear: 2024,
+        AwayBullpen3Id: 695243, AwayBullpen3GameYear: 2024,
+        AwayBullpen4Id: 695243, AwayBullpen4GameYear: 2024,
+        AwayBullpen5Id: 695243, AwayBullpen5GameYear: 2024,
+        AwayBullpen6Id: 695243, AwayBullpen6GameYear: 2024,
+        AwayBullpen7Id: 695243, AwayBullpen7GameYear: 2024,
+        AwayBullpen8Id: 695243, AwayBullpen8GameYear: 2024,
+        AwayBullpen9Id: 695243, AwayBullpen9GameYear: 2024,
+                
     },
 })
 
-
-
       _=game_result
-
-
-    //fmt.Println(game_result)
-
-     //spew.Dump(game_result)
-
-
-
 
 
   }
