@@ -16,10 +16,10 @@ This project is a pitch-by-pitch baseball game simulator written in Go. It uses 
 
 ## Technologies
 
-- **Baseball Savant** (for deriving probabilities)
-- **Python** (for data cleaning/calculations)
-- **Go (Golang)**
-- **PostgreSQL** (for storing and retrieving player/game data)
+- ![Go](https://img.shields.io/badge/Go-00ADD8?style=for-the-badge&logo=go&logoColor=white)
+- ![Baseball Savant](https://img.shields.io/badge/Baseball_Savant-0e6ba8?style=for-the-badge&logo=mlb&logoColor=white)
+- ![Python](https://img.shields.io/badge/Python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54)
+- ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white)
 
 ## How It Works
 
