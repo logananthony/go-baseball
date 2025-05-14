@@ -1,12 +1,15 @@
-# ⚾ Go! Baseball -  Baseball Simulator
+# ⚾ Go! Baseball 
 
-This project is a pitch-by-pitch baseball game simulator written in Go. It uses real-world player data to simulate innings, at-bats, and outcomes with probabilistic models - the end output being a pitch-by-pitch dataframe that includes many fields provided in Baseball Savant data.
+## About the Project
 
-## Features
+Two words...baseball simulator. At its core, this project started from a personal obsession—I wanted to build baseball games that *come to life* at the click of a button. But on a more practical level, I built this to create opportunities—for myself and others—to access usable, pitch-by-pitch level data for baseball analytics.
 
-- Simulates full 9-inning baseball games
-- Models pitch-by-pitch outcomes using real batter/pitcher matchups
-- Tracks base state, runs, and outs dynamically
+Too many problems in baseball analytics go unsolved because we just don’t have enough samples to work with. **Go! Baseball** is here to change that. It generates as much data as you’ll ever need, all in a format that’ll feel instantly familiar to anyone who’s worked with Baseball Savant (aka Statcast).
+
+## How It Works
+
+- Simulates full 9-inning baseball games given multiple user inputs
+- Models pitch-by-pitch outcomes using real world probability distributions
 - Modular design using Go packages:
   - `sim`: simulation engine
   - `models`: shared data structures
@@ -20,15 +23,6 @@ This project is a pitch-by-pitch baseball game simulator written in Go. It uses 
 - ![Baseball Savant](https://img.shields.io/badge/Baseball_Savant-0e6ba8?style=for-the-badge&logo=mlb&logoColor=white)
 - ![Python](https://img.shields.io/badge/Python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54)
 - ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white)
-
-## How It Works
-
-Each at-bat is simulated using `SimulateAtBat()` which returns a `PlateAppearanceResult`. The `ProcessPlateAppearance()` function updates the game state (score, base runners, outs) based on the result.
-
-Key components:
-- Base runners are tracked via a `[]bool` base state
-- Events like singles, doubles, walks, and home runs move runners or score them
-- Full game result is stored in `GameResult` structs
 
 ## Getting Started
 
