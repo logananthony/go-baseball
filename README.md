@@ -1,5 +1,9 @@
 # ⚾ Go! Baseball 
 
+<p align="center">
+  <img src="assets/gopher-ball.png" alt="Go Gopher Playing Baseball" width="300"/>
+</p>
+
 ## About the Project
 
 Two words...baseball simulator. At its core, this project started from a personal obsession—I wanted to build baseball games that *come to life* at the click of a button. But on a more practical level, I built this to create opportunities—for myself and others—to access usable, pitch-by-pitch level data for baseball analytics.
