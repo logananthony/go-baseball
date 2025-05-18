@@ -6,28 +6,31 @@ import (
 )     
 
 
-// FetchPitcherFrequencies queries and prints pitch data for a pitcher ID
-func SimulateSwingDecision(in []models.BatterSwingPercentage, stand, pThrows, pitchType string, plateX, plateZ float64) bool  {
-    
-    zone_num := utils.GetPitchZone(plateX, plateZ)
-    
-    swing_prob := []float64{}
-    for _, each := range in {
-      if each.Stand == stand && each.PThrows == pThrows && each.PitchType == pitchType && each.Zone == zone_num {
-        swing_prob = append(swing_prob, each.SwingPercentage)
-      }
+func SimulateSwingDecision(player []models.BatterSwingPercentage, league []models.BatterSwingPercentageLeague, stand, pThrows, pitchType string, plateX, plateZ float64) bool {
+	
+  zoneNum := utils.GetPitchZone(plateX, plateZ)
 
-    }
+	var playerSwing *float64 = nil
+	for _, each := range player {
+		if each.Stand == stand && each.PThrows == pThrows && each.PitchType == pitchType && each.Zone == zoneNum {
+			if each.TotalPitches >= 10 {
+				playerSwing = &each.SwingPercentage
+				break
+			}
+		}
+	}
 
-   if len(swing_prob) == 0 {
-    // fallback logic (e.g., assume no swing if no data) -- FIX THIS TO FALLBACK TO LEAGUE AVERAGE 
-    return false
-   }
-    sample := utils.IsSuccess(&swing_prob[0])
+	if playerSwing != nil {
+		return utils.IsSuccess(playerSwing)
+	}
 
-  return sample
+	for _, each := range league {
+		if each.Stand == stand && each.PThrows == pThrows && each.PitchType == pitchType && each.Zone == zoneNum {
+			val := float64(each.SwingPercentage)
+			return utils.IsSuccess(&val)
+		}
+	}
 
+	return false
 }
-
-
 
