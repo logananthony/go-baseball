@@ -17,23 +17,19 @@ func SimulateAtBat(in []models.PlateAppearanceData) []models.PlateAppearanceResu
     db := config.ConnectDB()
     defer db.Close()
 
-
-
     balls := 0
     strikes := 0
     pitch_count := 0
 
-    //fmt.Printf("Fetching ID: %d | Season: %d\n", in[0].BatterId, in[0].GameYear)
+    leagueSwingProbs := fetcher.FetchBatterSwingPercentageLeague()
+
 
     batterInfo, err := fetcher.FetchPlayerInfo(db, &in[0].BatterId, &in[0].BatterGameYear)
     if err != nil {
-        // handle error, log.Fatal, return, etc.
     }
     pitcherInfo, err := fetcher.FetchPlayerInfo(db, &in[0].PitcherId, &in[0].PitcherGameYear)
     if err != nil {
-        // handle error
     }
-  //fmt.Println(in[0].BatterId)
 
 
     if len(batterInfo) == 0 {
@@ -79,7 +75,6 @@ func SimulateAtBat(in []models.PlateAppearanceData) []models.PlateAppearanceResu
       }
   }
 
-//fmt.Printf("batterStands: %+v\n", *batterStands.BatSide)
 
     batterSwingProbs, _ := fetcher.FetchBatterSwingPercentage(db, in[0].BatterId, in[0].BatterGameYear)
     batterContactProbs, _ := fetcher.FetchBatterContactPercentage(db, in[0].BatterId, in[0].BatterGameYear)
@@ -116,7 +111,7 @@ func SimulateAtBat(in []models.PlateAppearanceData) []models.PlateAppearanceResu
 
 
     for {
-    
+     
       pitch_count += 1
       
       
@@ -126,7 +121,7 @@ func SimulateAtBat(in []models.PlateAppearanceData) []models.PlateAppearanceResu
       location_velo_result := SimulatePitchLocationVelo(pitch_covariance, pitch_type_result, *batterStands.BatSide, balls, strikes)
       zone_result := utils.GetPitchZone(location_velo_result[0], location_velo_result[1])
       is_strike_result := utils.IsPitchStrike(location_velo_result[0], location_velo_result[1])
-      is_swing_result := SimulateSwingDecision(batterSwingProbs, *batterStands.BatSide, *pitcherThrows.PitchHand, pitch_type_result, location_velo_result[0], location_velo_result[1])
+      is_swing_result := SimulateSwingDecision(batterSwingProbs, leagueSwingProbs, *batterStands.BatSide, *pitcherThrows.PitchHand, pitch_type_result, location_velo_result[0], location_velo_result[1])
       is_contact_result := SimulateContactPercentage(batterContactProbs, *batterStands.BatSide, *pitcherThrows.PitchHand, pitch_type_result, location_velo_result[0], location_velo_result[1])
       event_type_result := SimulateBatterHitType(batterHitProbs, *batterStands.BatSide, *pitcherThrows.PitchHand, pitch_type_result, location_velo_result[0], location_velo_result[1], location_velo_result[2])
 
