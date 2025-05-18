@@ -23,50 +23,50 @@ func main() {
     }
 
 game_result := sim.SimulateGame([]models.GameData{
-    {
-        // Yankees (Home)
-        HomeBatter1Id: 592450, HomeBatter1GameYear: 2024, // Aaron Judge
-        HomeBatter2Id: 665862, HomeBatter2GameYear: 2024, // Juan Soto
-        HomeBatter3Id: 605204, HomeBatter3GameYear: 2024, // Giancarlo Stanton
-        HomeBatter4Id: 543760, HomeBatter4GameYear: 2024, // Anthony Rizzo
-        HomeBatter5Id: 547180, HomeBatter5GameYear: 2024, // DJ LeMahieu
-        HomeBatter6Id: 666158, HomeBatter6GameYear: 2024, // Gleyber Torres
-        HomeBatter7Id: 660271, HomeBatter7GameYear: 2024, // Oswaldo Cabrera
-        HomeBatter8Id: 663757, HomeBatter8GameYear: 2024, // Anthony Volpe
-        HomeBatter9Id: 701538, HomeBatter9GameYear: 2024, // Austin Wells
 
-        HomeStartingPitcherId: 678394, HomeStartingPitcherGameYear: 2024, // Gerrit Cole
-        HomeBullpen1Id: 695243, HomeBullpen1GameYear: 2024,
-        HomeBullpen2Id: 695243, HomeBullpen2GameYear: 2024,
-        HomeBullpen3Id: 695243, HomeBullpen3GameYear: 2024,
-        HomeBullpen4Id: 695243, HomeBullpen4GameYear: 2024,
-        HomeBullpen5Id: 695243, HomeBullpen5GameYear: 2024,
-        HomeBullpen6Id: 695243, HomeBullpen6GameYear: 2024,
-        HomeBullpen7Id: 695243, HomeBullpen7GameYear: 2024,
-        HomeBullpen8Id: 695243, HomeBullpen8GameYear: 2024,
-        HomeBullpen9Id: 695243, HomeBullpen9GameYear: 2024,
+    // Testing real game (2024 Tigers @ Red Sox - 746954)
+    {   
+        HomeBatter1Id: 663837, HomeBatter1GameYear: 2024, // Matt Vierling
+        HomeBatter2Id: 682985, HomeBatter2GameYear: 2024, // Riley Greene
+        HomeBatter3Id: 592192, HomeBatter3GameYear: 2024, // Mark Canha
+        HomeBatter4Id: 570482, HomeBatter4GameYear: 2024, // Gio Urshela
+        HomeBatter5Id: 690993, HomeBatter5GameYear: 2024, // Colt Keith
+        HomeBatter6Id: 668731, HomeBatter6GameYear: 2024, // Akil Badoo
+        HomeBatter7Id: 679529, HomeBatter7GameYear: 2024, // Spencer Torkelson
+        HomeBatter8Id: 595879, HomeBatter8GameYear: 2024, // Javy Baez
+        HomeBatter9Id: 608348, HomeBatter9GameYear: 2024, // Carson Kelly
 
-        // Dodgers (Away)
-        AwayBatter1Id: 660271, AwayBatter1GameYear: 2024, // Mookie Betts
-        AwayBatter2Id: 660271, AwayBatter2GameYear: 2024, // Shohei Ohtani
-        AwayBatter3Id: 547180, AwayBatter3GameYear: 2024, // Freddie Freeman
-        AwayBatter4Id: 606192, AwayBatter4GameYear: 2024, // Will Smith
-        AwayBatter5Id: 605141, AwayBatter5GameYear: 2024, // Max Muncy
-        AwayBatter6Id: 669242, AwayBatter6GameYear: 2024, // Gavin Lux
-        AwayBatter7Id: 518692, AwayBatter7GameYear: 2024, // Chris Taylor
-        AwayBatter8Id: 571771, AwayBatter8GameYear: 2024, // James Outman
-        AwayBatter9Id: 595281, AwayBatter9GameYear: 2024, // Miguel Vargas
+        HomeStartingPitcherId: 656427, HomeStartingPitcherGameYear: 2024, // Jack Flaherty
+        HomeBullpen1Id: 571946, HomeBullpen1GameYear: 2024, // Shelby Miller
+        HomeBullpen2Id: 689225, HomeBullpen2GameYear: 2024, // Beau Brieske
+        HomeBullpen3Id: 676684, HomeBullpen3GameYear: 2024, // Will Vest
+        HomeBullpen4Id: 663947, HomeBullpen4GameYear: 2024, // Tyler Holton
+        HomeBullpen5Id: 656412, HomeBullpen5GameYear: 2024, // Alex Faedo
+        HomeBullpen6Id: 605177, HomeBullpen6GameYear: 2024, // Andrew Chafin
+        HomeBullpen7Id: 669724, HomeBullpen7GameYear: 2024, // Brenan Hanifee
+        HomeBullpen8Id: 666159, HomeBullpen8GameYear: 2024, // Matt Manning
+        HomeBullpen9Id: 680744, HomeBullpen9GameYear: 2024, // Ty Madden
 
-        AwayStartingPitcherId: 678394, AwayStartingPitcherGameYear: 2024, // Walker Buehler
-        AwayBullpen1Id: 695243, AwayBullpen1GameYear: 2024,
-        AwayBullpen2Id: 695243, AwayBullpen2GameYear: 2024,
-        AwayBullpen3Id: 695243, AwayBullpen3GameYear: 2024,
-        AwayBullpen4Id: 695243, AwayBullpen4GameYear: 2024,
-        AwayBullpen5Id: 695243, AwayBullpen5GameYear: 2024,
-        AwayBullpen6Id: 695243, AwayBullpen6GameYear: 2024,
-        AwayBullpen7Id: 695243, AwayBullpen7GameYear: 2024,
-        AwayBullpen8Id: 695243, AwayBullpen8GameYear: 2024,
-        AwayBullpen9Id: 695243, AwayBullpen9GameYear: 2024,
+        AwayBatter1Id: 680776, AwayBatter1GameYear: 2024, // Jarren Duran 
+        AwayBatter2Id: 677800, AwayBatter2GameYear: 2024, // Wilyer Abreu
+        AwayBatter3Id: 608701, AwayBatter3GameYear: 2024, // Rob Refsnyder
+        AwayBatter4Id: 646240, AwayBatter4GameYear: 2024, // Rafael Devers
+        AwayBatter5Id: 657136, AwayBatter5GameYear: 2024, // Connor Wong
+        AwayBatter6Id: 643265, AwayBatter6GameYear: 2024, // Garrett Cooper
+        AwayBatter7Id: 624512, AwayBatter7GameYear: 2024, // Reese McGuire
+        AwayBatter8Id: 687093, AwayBatter8GameYear: 2024, // Vaugh Grissom
+        AwayBatter9Id: 666152, AwayBatter9GameYear: 2024, // David Hamilton
+
+        AwayStartingPitcherId: 601713, AwayStartingPitcherGameYear: 2024, // Nick Pivetta
+        AwayBullpen1Id: 502624, AwayBullpen1GameYear: 2024, // Chase Anderson
+        AwayBullpen2Id: 686580, AwayBullpen2GameYear: 2024, // Justin Slaten
+        AwayBullpen3Id: 670174, AwayBullpen3GameYear: 2024, // Josh Winckowski
+        AwayBullpen4Id: 455119, AwayBullpen4GameYear: 2024, // Chris Martin
+        AwayBullpen5Id: 657514, AwayBullpen5GameYear: 2024, // Brennan Bernardino
+        AwayBullpen6Id: 677161, AwayBullpen6GameYear: 2024, // Zack Kelly
+        AwayBullpen7Id: 669711, AwayBullpen7GameYear: 2024, // Greg Weissert
+        AwayBullpen8Id: 445276, AwayBullpen8GameYear: 2024, // Kenley Jansen
+        AwayBullpen9Id: 592155, AwayBullpen9GameYear: 2024, // Cam Booser
                 
     },
 })

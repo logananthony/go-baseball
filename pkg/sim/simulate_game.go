@@ -127,7 +127,13 @@ func SimulateGame(in []models.GameData) []models.GameResult {
       inningRunsHome := awayScore - priorAwayScore
       pullProbHome := utils.GetPullProbability(pitchingSubProbs, inning, awayScore, inningRunsHome)
 
-      var pitcherPulledHome = utils.IsSuccess(pullProbHome)
+      var pitcherPulledHome bool
+
+      if pullProbHome != nil {
+        pitcherPulledHome = utils.IsSuccess(pullProbHome)
+      } else {
+        pitcherPulledHome = false
+      }
 
       if pullProbHome != nil && pitcherPulledHome {
         homePitcherLineup = utils.FilterSliceSlices(homePitcherLineup, homePitcher)
@@ -181,7 +187,14 @@ func SimulateGame(in []models.GameData) []models.GameResult {
       inningRunsAway := homeScore - priorHomeScore
       pullProbAway := utils.GetPullProbability(pitchingSubProbs, inning, homeScore, inningRunsAway)
 
-      var pitcherPulledAway = utils.IsSuccess(pullProbAway)
+      var pitcherPulledAway bool
+
+      if pullProbAway != nil {
+        pitcherPulledAway = utils.IsSuccess(pullProbAway)
+      } else {
+        pitcherPulledAway = false
+      }
+
 
       if pullProbAway != nil && pitcherPulledAway {
         awayPitcherLineup = utils.FilterSliceSlices(awayPitcherLineup, awayPitcher)

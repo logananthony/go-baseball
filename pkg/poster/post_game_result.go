@@ -3,7 +3,7 @@ package poster
 import (
 	"database/sql"
 	"fmt"
-
+  "time"
 	"github.com/logananthony/go-baseball/pkg/models"
 )
 
@@ -99,7 +99,8 @@ func InsertGameResult(db *sql.DB, gameId string, gameYear int, result models.Gam
                 strikes, balls, pitch_count,
                 pitch_type, plate_x, plate_z, zone,
                 velocity, is_strike, is_swing, is_contact,
-                event_type, exit_velocity, launch_angle, spray_angle
+                event_type, exit_velocity, launch_angle, spray_angle,
+                created_at
               ) VALUES (
                 $1, $2, $3, $4, $5,
                 $6, $7, $8, $9,
@@ -110,7 +111,8 @@ func InsertGameResult(db *sql.DB, gameId string, gameYear int, result models.Gam
                 $20, $21, $22,
                 $23, $24, $25, $26,
                 $27, $28, $29, $30,
-                $31, $32, $33, $34
+                $31, $32, $33, $34,
+                $35
               )
           `,
 				gameId, gameYear,
@@ -123,7 +125,7 @@ func InsertGameResult(db *sql.DB, gameId string, gameYear int, result models.Gam
 				pa.Strikes[i], pa.Balls[i], pa.PitchCount[i],
 				pa.PitchType[i], pa.PlateX[i], pa.PlateZ[i], pa.Zone[i],
 				pa.Velocity[i], pa.IsStrike[i], pa.IsSwing[i], isContact,
-				eventType, exitVelocity, launchAngle, sprayAngle,
+				eventType, exitVelocity, launchAngle, sprayAngle, time.Now(),
 			)
 
 			if err != nil {
@@ -136,4 +138,5 @@ func InsertGameResult(db *sql.DB, gameId string, gameYear int, result models.Gam
 	}
 	return nil
 }
+
 
