@@ -22,7 +22,8 @@ func SimulateAtBat(in []models.PlateAppearanceData) []models.PlateAppearanceResu
     pitch_count := 0
 
     leagueSwingProbs := fetcher.FetchBatterSwingPercentageLeague()
-
+    leagueContactProbs := fetcher.FetchBatterContactPercentageLeague()
+    leaguePitcherCovMeans := fetcher.FetchPitcherCovarianceMeanLeague()
 
     batterInfo, err := fetcher.FetchPlayerInfo(db, &in[0].BatterId, &in[0].BatterGameYear)
     if err != nil {
@@ -115,15 +116,54 @@ func SimulateAtBat(in []models.PlateAppearanceData) []models.PlateAppearanceResu
       pitch_count += 1
       
       
-      pitcher_freqs := fetcher.FetchPitcherFrequencies(db, in[0].PitcherId, *batterStands.BatSide)
-      pitch_type_result := SimulatePitchType(pitcher_freqs, balls, strikes)
-      pitch_covariance := fetcher.FetchPitcherCovarianceMean(db, int64(in[0].PitcherId), int64(in[0].PitcherGameYear))
-      location_velo_result := SimulatePitchLocationVelo(pitch_covariance, pitch_type_result, *batterStands.BatSide, balls, strikes)
-      zone_result := utils.GetPitchZone(location_velo_result[0], location_velo_result[1])
-      is_strike_result := utils.IsPitchStrike(location_velo_result[0], location_velo_result[1])
-      is_swing_result := SimulateSwingDecision(batterSwingProbs, leagueSwingProbs, *batterStands.BatSide, *pitcherThrows.PitchHand, pitch_type_result, location_velo_result[0], location_velo_result[1])
-      is_contact_result := SimulateContactPercentage(batterContactProbs, *batterStands.BatSide, *pitcherThrows.PitchHand, pitch_type_result, location_velo_result[0], location_velo_result[1])
-      event_type_result := SimulateBatterHitType(batterHitProbs, *batterStands.BatSide, *pitcherThrows.PitchHand, pitch_type_result, location_velo_result[0], location_velo_result[1], location_velo_result[2])
+      pitcher_freqs := fetcher.FetchPitcherFrequencies(db, 
+                                                       in[0].PitcherId, 
+                                                       *batterStands.BatSide)
+
+      pitch_type_result := SimulatePitchType(pitcher_freqs, 
+                                             balls, 
+                                             strikes)
+
+      pitch_covariance := fetcher.FetchPitcherCovarianceMean(db, 
+                                                             int64(in[0].PitcherId), 
+                                                             int64(in[0].PitcherGameYear))
+
+      location_velo_result := SimulatePitchLocationVelo(pitch_covariance,
+                                                        leaguePitcherCovMeans,
+                                                        pitch_type_result, 
+                                                        *batterStands.BatSide, 
+                                                        balls, 
+                                                        strikes)
+
+      zone_result := utils.GetPitchZone(location_velo_result[0], 
+                                        location_velo_result[1])
+
+      is_strike_result := utils.IsPitchStrike(location_velo_result[0], 
+                                              location_velo_result[1])
+
+      is_swing_result := SimulateSwingDecision(batterSwingProbs, 
+                                               leagueSwingProbs, 
+                                               *batterStands.BatSide, 
+                                               *pitcherThrows.PitchHand, 
+                                               pitch_type_result, 
+                                               location_velo_result[0], 
+                                               location_velo_result[1])
+
+      is_contact_result := SimulateContactPercentage(batterContactProbs, 
+                                                     leagueContactProbs,
+                                                     *batterStands.BatSide, 
+                                                     *pitcherThrows.PitchHand, 
+                                                     pitch_type_result, 
+                                                     location_velo_result[0], 
+                                                     location_velo_result[1])
+
+      event_type_result := SimulateBatterHitType(batterHitProbs, 
+                                                 *batterStands.BatSide, 
+                                                 *pitcherThrows.PitchHand, 
+                                                 pitch_type_result, 
+                                                 location_velo_result[0], 
+                                                 location_velo_result[1], 
+                                                 location_velo_result[2])
 
       evRows := fetcher.FetchEVDistributions(
         db,
@@ -133,7 +173,7 @@ func SimulateAtBat(in []models.PlateAppearanceData) []models.PlateAppearanceResu
         *pitcherThrows.PitchHand,
         utils.StrToNull(event_type_result),
         utils.StrToNull(pitch_type_result),
-        utils.IntToNull(zone_result), // If zone_result is -1, it'll convert to NULL
+        utils.IntToNull(zone_result), 
         utils.StrToNull(utils.GetVelocityBucket(location_velo_result[2])),
       )
       agg_ev := AggregateEVDistributions(evRows)
