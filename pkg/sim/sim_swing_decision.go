@@ -13,7 +13,7 @@ func SimulateSwingDecision(player []models.BatterSwingPercentage, league []model
 	var playerSwing *float64 = nil
 	for _, each := range player {
 		if each.Stand == stand && each.PThrows == pThrows && each.PitchType == pitchType && each.Zone == zoneNum {
-			if each.TotalPitches >= 10 {
+			if each.TotalPitches >= 25 {
 				playerSwing = &each.SwingPercentage
 				break
 			}

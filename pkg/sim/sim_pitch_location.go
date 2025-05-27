@@ -12,7 +12,7 @@ import (
 )
 
 // FetchPitcherFrequencies queries and prints pitch data for a pitcher ID
-func SimulatePitchLocationVelo(in []models.PitcherCovarianceMean, pitch_type string, stand string, balls, strikes int) []float64  {
+func SimulatePitchLocationVelo(player []models.PitcherCovarianceMean, league []models.PitcherCovarianceMeanLeague, pitch_type string, stand string, balls, strikes int) []float64  {
 
     var count_state string
     if balls == strikes {
@@ -23,37 +23,67 @@ func SimulatePitchLocationVelo(in []models.PitcherCovarianceMean, pitch_type str
        count_state = "ahead"
     }
 
-   mean_mat := []float64{}
-   //var cov_mat [3][3]float64
-   cov_mat := mat.NewSymDense(3, []float64 {
+    src := rand.NewSource(uint64(time.Now().UnixNano()))
+
+
+   player_mean_mat := []float64{}
+   player_cov_mat := mat.NewSymDense(3, []float64 {
         0, 0, 0,
         0, 0, 0,
         0, 0, 0,
         })
 
-        for _, each := range in {
+        for _, each := range player {
           if each.CountState == count_state && each.PitchType == pitch_type && each.Stand == stand {
-              
-              mean_mat = append(mean_mat, each.MeanPlateX, each.MeanPlateZ, each.MeanVelo)
 
+            if each.Count >= 30 {
               
-              cov_mat = mat.NewSymDense(3, []float64 {
+              player_mean_mat = append(player_mean_mat, each.MeanPlateX, each.MeanPlateZ, each.MeanVelo)
+
+              player_cov_mat = mat.NewSymDense(3, []float64 {
                   each.CovPlateXPlateX, each.CovPlateXPlateZ, each.CovPlateXVelo,
                   each.CovPlateXPlateZ, each.CovPlateZPlateZ, each.CovPlateZVelo,
                   each.CovPlateXVelo, each.CovPlateZVelo, each.CovVeloVelo,
               })
+
               break 
+
+            }
           }
       } 
 
-      if len(mean_mat) != 3 {
-          return []float64{0, 0, 0}
-      }
+      if player_mean_mat == nil {
+          sample := distmv.NormalRandCov(nil, player_mean_mat, player_cov_mat, src)
+          return sample
+      } 
 
-    src := rand.NewSource(uint64(time.Now().UnixNano()))
-    sample := distmv.NormalRandCov(nil, mean_mat, cov_mat, src)
-    
-  return sample
+   league_mean_mat := []float64{}
+   league_cov_mat := mat.NewSymDense(3, []float64 {
+        0, 0, 0,
+        0, 0, 0,
+        0, 0, 0,
+        })
+
+        for _, each := range league {
+          if each.CountState == count_state && each.PitchType == pitch_type && each.Stand == stand {
+              
+              league_mean_mat = append(league_mean_mat, each.MeanPlateX, each.MeanPlateZ, each.MeanVelo)
+
+              league_cov_mat = mat.NewSymDense(3, []float64 {
+                  each.CovPlateXPlateX, each.CovPlateXPlateZ, each.CovPlateXVelo,
+                  each.CovPlateXPlateZ, each.CovPlateZPlateZ, each.CovPlateZVelo,
+                  each.CovPlateXVelo, each.CovPlateZVelo, each.CovVeloVelo,
+              })
+              sample := distmv.NormalRandCov(nil, league_mean_mat, league_cov_mat, src)
+              return sample
+
+              
+          }
+      } 
+
+
+    return []float64{0, 0, 0}
+
 
 }
 
