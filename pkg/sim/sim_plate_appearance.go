@@ -228,6 +228,7 @@ func SimulateAtBat(in []models.PlateAppearanceData) []models.PlateAppearanceResu
       exit_velocity_sequence = append(exit_velocity_sequence, ev_result)
       launch_angle_sequence = append(launch_angle_sequence, la_result)
       spray_angle_sequence = append(spray_angle_sequence, spray_result)
+      //fmt.Println("is_swing:", is_swing_result, " - is_contact: ", is_contact_result)
 
 
       if is_swing_result {
@@ -288,6 +289,10 @@ func SimulateAtBat(in []models.PlateAppearanceData) []models.PlateAppearanceResu
       case strikes == 3:
 
             event_type_sequence = append(event_type_sequence, "strikeout")
+            //fmt.Println("is swing: ", is_swing_sequence)
+            //fmt.Println("contact_type: ", is_contact_sequence)
+              //fmt.Println("zone_sequence: ", zone_sequence)
+
             return []models.PlateAppearanceResult{{
                 PitcherGameYear: pitcher_game_year_sequence,
                 PitcherFullName: pitcher_full_name_sequence,
@@ -315,6 +320,11 @@ func SimulateAtBat(in []models.PlateAppearanceData) []models.PlateAppearanceResu
             }}
       case balls == 4:
           event_type_sequence = append(event_type_sequence, "walk")
+          //fmt.Println("is swing: ", is_swing_sequence)
+          //fmt.Println("contact_type: ", is_contact_sequence)
+            //fmt.Println("zone_sequence: ", zone_sequence)
+
+
             return []models.PlateAppearanceResult{{
                 PitcherGameYear: pitcher_game_year_sequence,
                 PitcherFullName: pitcher_full_name_sequence,

@@ -5,48 +5,43 @@ const (
     rightEdge  = 0.71
     topEdge    = 3.5
     bottomEdge = 1.5
-
-    bufferX = 0.25 
-    bufferZ = 0.25
 )
 
-
+// GetPitchZone maps Statcast-style plate coordinates (X, Z) to MLB 14 zones
 func GetPitchZone(plateX, plateZ float64) int {
-    // Inside the 9-zone strike zone (1-9)
+    zoneWidth := (rightEdge - leftEdge) / 3
+    zoneHeight := (topEdge - bottomEdge) / 3
+
+    // --- Inside strike zone: Zones 1–9 (3x3 grid) ---
     if plateX >= leftEdge && plateX <= rightEdge && plateZ >= bottomEdge && plateZ <= topEdge {
-        var col, row int
-        if plateX < leftEdge/3 {
-            col = 1
-        } else if plateX > rightEdge/3 {
-            col = 3
-        } else {
-            col = 2
-        }
-        if plateZ > (topEdge - (topEdge-bottomEdge)/3) {
-            row = 1
-        } else if plateZ < (bottomEdge + (topEdge-bottomEdge)/3) {
-            row = 3
-        } else {
-            row = 2
-        }
-        return (row-1)*3 + col // zones 1-9
+        col := int((plateX - leftEdge) / zoneWidth) + 1
+        row := 3 - int((plateZ - bottomEdge) / zoneHeight)
+        return (row-1)*3 + col
     }
 
-    // Infinite outer zones
-    if plateZ > topEdge && plateX < leftEdge {
-        return 11 // upper left (zone 11)
-    }
-    if plateZ > topEdge && plateX > rightEdge {
-        return 12 // upper right (zone 12)
-    }
-    if plateZ < bottomEdge && plateX < leftEdge {
-        return 13 // lower left (zone 13)
-    }
-    if plateZ < bottomEdge && plateX > rightEdge {
-        return 14 // lower right (zone 14)
+    // --- Outside zones by quadrant (11–14) ---
+
+    // Zone 11: Top-left (Z above, or X left, or both)
+    if plateZ > topEdge && plateX < 0 || plateX < leftEdge && plateZ > bottomEdge {
+        return 11
     }
 
-    return 14 // FIX THIS
+    // Zone 12: Top-right
+    if plateZ > topEdge && plateX >= 0 || plateX > rightEdge && plateZ > bottomEdge {
+        return 12
+    }
+
+    // Zone 13: Bottom-left
+    if plateZ < bottomEdge && plateX < 0 || plateX < leftEdge && plateZ < topEdge {
+        return 13
+    }
+
+    // Zone 14: Bottom-right
+    if plateZ < bottomEdge && plateX >= 0 || plateX > rightEdge && plateZ < topEdge {
+        return 14
+    }
+
+    // --- Fallback (shouldn't happen) ---
+    return 0
 }
-
 

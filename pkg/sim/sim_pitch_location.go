@@ -8,6 +8,7 @@ import (
 	"golang.org/x/exp/rand"
 	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/gonum/stat/distmv"
+  //"fmt"
 	//"gonum.org/v1/gonum/mat"
 )
 
@@ -27,16 +28,13 @@ func SimulatePitchLocationVelo(player []models.PitcherCovarianceMean, league []m
 
 
    player_mean_mat := []float64{}
-   player_cov_mat := mat.NewSymDense(3, []float64 {
-        0, 0, 0,
-        0, 0, 0,
-        0, 0, 0,
-        })
+   var player_cov_mat *mat.SymDense
+
 
         for _, each := range player {
           if each.CountState == count_state && each.PitchType == pitch_type && each.Stand == stand {
 
-            if each.Count >= 30 {
+            if each.Count >= 1 {
               
               player_mean_mat = append(player_mean_mat, each.MeanPlateX, each.MeanPlateZ, each.MeanVelo)
 
@@ -52,17 +50,15 @@ func SimulatePitchLocationVelo(player []models.PitcherCovarianceMean, league []m
           }
       } 
 
-      if player_mean_mat == nil {
+      if len(player_mean_mat) > 0 && player_cov_mat != nil {
+
           sample := distmv.NormalRandCov(nil, player_mean_mat, player_cov_mat, src)
+         // fmt.Println(sample)
           return sample
       } 
 
    league_mean_mat := []float64{}
-   league_cov_mat := mat.NewSymDense(3, []float64 {
-        0, 0, 0,
-        0, 0, 0,
-        0, 0, 0,
-        })
+   var league_cov_mat *mat.SymDense
 
         for _, each := range league {
           if each.CountState == count_state && each.PitchType == pitch_type && each.Stand == stand {
