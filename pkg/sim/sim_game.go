@@ -18,6 +18,43 @@ func SimulateGame(in []models.GameData) {
 	db := config.ConnectDB()
 	defer db.Close()
 
+	gameRes := models.GameResult{
+		GameId: uuid.New().String(),
+		PAResult: models.PlateAppearanceResult{
+			PitcherGameYear: []int{},
+			PitcherFullName: []string{},
+			PitcherId:       []int{},
+			BatterGameYear:  []int{},
+			BatterFullName:  []string{},
+			BatterId:        []int{},
+			BatterStands:    []string{},
+			PitcherThrows:   []string{},
+			Strikes:         []int{},
+			Balls:           []int{},
+			PitchCount:      []int{},
+			PitchType:       []string{},
+			PlateX:          []float64{},
+			PlateZ:          []float64{},
+			Zone:            []int{},
+			Velocity:        []float64{},
+			IsStrike:        []bool{},
+			IsSwing:         []bool{},
+			IsContact:       []string{},
+			ExitVelocity:    []float64{},
+			LaunchAngle:     []float64{},
+			SprayAngle:      []float64{},
+			EventType:       []string{},
+			AwayScore:       []int{},
+			HomeScore:       []int{},
+			AtBatNumber:     []int{},
+			Inning:          []int{},
+			InningTopBot:    []string{},
+			Outs:            []int{},
+			On1b:            []bool{},
+			On2b:            []bool{},
+			On3b:            []bool{},
+		}}
+
 	homeLineup := []int{
 		in[0].HomeBatter1Id, in[0].HomeBatter2Id, in[0].HomeBatter3Id,
 		in[0].HomeBatter4Id, in[0].HomeBatter5Id, in[0].HomeBatter6Id,
@@ -73,9 +110,9 @@ func SimulateGame(in []models.GameData) {
 	var awayPitcher int
 	var awayPitcherGameYear int
 
-	inning := 9
+	inning := 1
 	awayScore := 0
-	homeScore := 10
+	homeScore := 0
 	awayBatterNumber := 0
 	homeBatterNumber := 0
 	atBatNumber := 0
@@ -94,42 +131,6 @@ func SimulateGame(in []models.GameData) {
 		homeBaseState := []bool{false, false, false, false}
 		priorAwayScore := awayScore
 		priorHomeScore := homeScore
-		gameRes := models.GameResult{
-			GameId: uuid.New().String(),
-			PAResult: models.PlateAppearanceResult{
-				PitcherGameYear: []int{},
-				PitcherFullName: []string{},
-				PitcherId:       []int{},
-				BatterGameYear:  []int{},
-				BatterFullName:  []string{},
-				BatterId:        []int{},
-				BatterStands:    []string{},
-				PitcherThrows:   []string{},
-				Strikes:         []int{},
-				Balls:           []int{},
-				PitchCount:      []int{},
-				PitchType:       []string{},
-				PlateX:          []float64{},
-				PlateZ:          []float64{},
-				Zone:            []int{},
-				Velocity:        []float64{},
-				IsStrike:        []bool{},
-				IsSwing:         []bool{},
-				IsContact:       []string{},
-				ExitVelocity:    []float64{},
-				LaunchAngle:     []float64{},
-				SprayAngle:      []float64{},
-				EventType:       []string{},
-				AwayScore:       []int{},
-				HomeScore:       []int{},
-				AtBatNumber:     []int{},
-				Inning:          []int{},
-				InningTopBot:    []string{},
-				Outs:            []int{},
-				On1b:            []bool{},
-				On2b:            []bool{},
-				On3b:            []bool{},
-			}}
 
 		fmt.Println("Top Inning:", inning)
 
@@ -244,7 +245,7 @@ func SimulateGame(in []models.GameData) {
 			if pullProbAway != nil && pitcherPulledAway {
 				awayPitcherLineup = utils.FilterSliceSlices(awayPitcherLineup, awayPitcher)
 				awayPitcherChosenIndex := rand.Intn(len(awayPitcherLineup))
-				homePitcher = awayPitcherLineup[awayPitcherChosenIndex][0]
+				awayPitcher = awayPitcherLineup[awayPitcherChosenIndex][0]
 				awayPitcherGameYear = awayPitcherLineup[awayPitcherChosenIndex][1]
 			}
 
