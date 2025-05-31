@@ -3,7 +3,8 @@ package poster
 import (
 	"database/sql"
 	"fmt"
-  "time"
+	"time"
+
 	"github.com/logananthony/go-baseball/pkg/models"
 )
 
@@ -21,74 +22,14 @@ func toNullableInt(slice []int, i int) int {
 	return slice[i]
 }
 
-func minInt(vals ...int) int {
-	if len(vals) == 0 {
-		return 0
-	}
-	min := vals[0]
-	for _, v := range vals[1:] {
-		if v < min {
-			min = v
-		}
-	}
-	return min
-}
-
 func InsertGameResult(db *sql.DB, gameId string, gameYear int, result models.GameResult) error {
-	for _, pa := range result.PitchData {
-		numPitches := minInt(
-			len(pa.PitcherId),
-			len(pa.BatterId),
-			len(pa.Strikes),
-			len(pa.Balls),
-			len(pa.PitchCount),
-			len(pa.PitchType),
-			len(pa.PlateX),
-			len(pa.PlateZ),
-			len(pa.Zone),
-			len(pa.Velocity),
-			len(pa.IsStrike),
-			len(pa.IsSwing),
-		)
+	pa := result.PAResult
 
-		for i := 0; i < numPitches; i++ {
-			var isContact interface{}
-			if pa.IsSwing[i] && i < len(pa.IsContact) {
-				isContact = pa.IsContact[i]
-			} else {
-				isContact = nil
-			}
-
-			var eventType interface{}
-			if i == numPitches-1 && len(pa.EventType) > 0 {
-				eventType = pa.EventType[len(pa.EventType)-1]
-			} else {
-				eventType = nil
-			}
-
-      var exitVelocity any
-      if i == numPitches-1 && len(pa.ExitVelocity) > 0 && i < len(pa.IsContact) && pa.IsContact[i] == "ball_in_play" {
-        exitVelocity = pa.ExitVelocity[0]
-      } else {
-        exitVelocity = nil
-      }
-
-      var launchAngle any
-      if i == numPitches-1 && len(pa.LaunchAngle) > 0 && i < len(pa.IsContact) && pa.IsContact[i] == "ball_in_play" {
-        launchAngle = pa.LaunchAngle[0]
-      } else {
-        launchAngle = nil
-      }
-
-      var sprayAngle any
-      if i == numPitches-1 && len(pa.SprayAngle) > 0 && i < len(pa.IsContact) && pa.IsContact[i] == "ball_in_play" {
-        sprayAngle = pa.SprayAngle[0]
-      } else {
-        sprayAngle = nil
-      }
-
-			_, err := db.Exec(`
-              INSERT INTO game_result (
+	// Ensure all slices in PlateAppearanceResult are of the same length
+	numPitches := len(pa.PitcherId) // Use one of the slices to determine the number of pitches
+	for i := 0; i < numPitches; i++ {
+		_, err := db.Exec(`
+            INSERT INTO game_result (
                 game_id, game_year,
                 at_bat_number, inning, inning_topbot,
                 outs, on1B, on2B, on3B,
@@ -101,7 +42,7 @@ func InsertGameResult(db *sql.DB, gameId string, gameYear int, result models.Gam
                 velocity, is_strike, is_swing, is_contact,
                 event_type, exit_velocity, launch_angle, spray_angle,
                 created_at
-              ) VALUES (
+            ) VALUES (
                 $1, $2, $3, $4, $5,
                 $6, $7, $8, $9,
                 $10, $11,
@@ -113,30 +54,27 @@ func InsertGameResult(db *sql.DB, gameId string, gameYear int, result models.Gam
                 $27, $28, $29, $30,
                 $31, $32, $33, $34,
                 $35
-              )
-          `,
-				gameId, gameYear,
-				result.AtBatNumber, result.Inning, result.InningTopBot,
-				result.Outs, result.On1b, result.On2b, result.On3b,
-				result.AwayScore, result.HomeScore,
-				pa.PitcherId[i], toNullableString(pa.PitcherFullName, i), toNullableInt(pa.PitcherGameYear, i),
-				pa.BatterId[i], toNullableString(pa.BatterFullName, i), toNullableInt(pa.BatterGameYear, i),
-				toNullableString(pa.BatterStands, i), toNullableString(pa.PitcherThrows, i),
-				pa.Strikes[i], pa.Balls[i], pa.PitchCount[i],
-				pa.PitchType[i], pa.PlateX[i], pa.PlateZ[i], pa.Zone[i],
-				pa.Velocity[i], pa.IsStrike[i], pa.IsSwing[i], isContact,
-				eventType, exitVelocity, launchAngle, sprayAngle, time.Now(),
-			)
+            )
+        `,
+			gameId, gameYear,
+			pa.AtBatNumber[i], pa.Inning[i], pa.InningTopBot[i],
+			pa.Outs[i], pa.On1b[i], pa.On2b[i], pa.On3b[i],
+			pa.AwayScore[i], pa.HomeScore[i],
+			pa.PitcherId[i], toNullableString(pa.PitcherFullName, i), toNullableInt(pa.PitcherGameYear, i),
+			pa.BatterId[i], toNullableString(pa.BatterFullName, i), toNullableInt(pa.BatterGameYear, i),
+			toNullableString(pa.BatterStands, i), toNullableString(pa.PitcherThrows, i),
+			pa.Strikes[i], pa.Balls[i], pa.PitchCount[i],
+			toNullableString(pa.PitchType, i), pa.PlateX[i], pa.PlateZ[i], pa.Zone[i],
+			pa.Velocity[i], pa.IsStrike[i], pa.IsSwing[i], toNullableString(pa.IsContact, i),
+			toNullableString(pa.EventType, i), pa.ExitVelocity[i], pa.LaunchAngle[i], pa.SprayAngle[i], time.Now(),
+		)
 
-			if err != nil {
-				fmt.Println("🚨 INSERT FAILED for AtBatNumber", result.AtBatNumber, ":", err)
-				return err
-			}
-
-			fmt.Println("✅ Inserted pitch", i+1, "for AtBatNumber:", result.AtBatNumber)
+		if err != nil {
+			fmt.Printf("🚨 INSERT FAILED for AtBatNumber %d, Pitch %d: %v\n", pa.AtBatNumber[i], i+1, err)
+			return err
 		}
+
+		fmt.Printf("✅ Inserted pitch %d for AtBatNumber: %d\n", i+1, pa.AtBatNumber[i])
 	}
 	return nil
 }
-
-
