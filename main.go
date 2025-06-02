@@ -1,7 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"log"
+	"time"
 
 	"github.com/joho/godotenv"
 	"github.com/logananthony/go-baseball/pkg/models"
@@ -9,14 +11,17 @@ import (
 	//"os"
 )
 
-func init() {
-	err := godotenv.Load()
-	if err != nil {
-		log.Println("No .env file found")
+func timer(name string) func() {
+	start := time.Now()
+	return func() {
+		fmt.Printf("%s took %v\n", name, time.Since(start))
 	}
 }
 
 func main() {
+
+	defer timer("main")()
+	time.Sleep(time.Second * 2)
 
 	err := godotenv.Load()
 	if err != nil {

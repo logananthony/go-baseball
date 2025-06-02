@@ -3,6 +3,7 @@ package fetcher
 import (
 	"database/sql"
 	"log"
+
 	"github.com/logananthony/go-baseball/pkg/models"
 )
 
@@ -10,14 +11,11 @@ func FetchEVDistributions(
 	db *sql.DB,
 	gameYear int,
 	batter int,
-	stand string,
-	pThrows string,
-	outcome sql.NullString,
-	pitchType sql.NullString,
-	zone sql.NullInt32,
-	velocityBucket sql.NullString,
+	// outcome sql.NullString,
+	// pitchType sql.NullString,
+	// zone sql.NullInt32,
+	// velocityBucket sql.NullString,
 ) []models.EVDistribution {
-
 
 	query := `
 SELECT
@@ -37,25 +35,13 @@ SELECT
 FROM ev_distributions
 WHERE
 	game_year = $1 AND
-	batter = $2 AND
-	stand = $3 AND
-	p_throws = $4 AND
-	(outcome is null OR outcome = $5) AND
-	(pitch_type is null OR pitch_type = $6) AND
-	(zone is null OR zone = $7) AND
-	(velocity_bucket is null OR velocity_bucket = $8)
+	batter = $2 
 	`
 
 	rows, err := db.Query(
 		query,
 		gameYear,
 		batter,
-		stand,
-		pThrows,
-		outcome,
-		pitchType,
-		zone,
-		velocityBucket,
 	)
 	if err != nil {
 		log.Fatal("Query error:", err)
@@ -90,5 +76,3 @@ WHERE
 }
 
 // Helper to convert empty string into SQL NULL
-
-

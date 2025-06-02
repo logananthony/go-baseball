@@ -17,4 +17,3 @@ type EVDistribution struct {
 	N              int
 	Level          string
 }
-
