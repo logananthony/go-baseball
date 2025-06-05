@@ -31,6 +31,8 @@ func main() {
 	psqlInfo := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
 		config.Host, config.Port, config.User, config.Password, config.Dbname)
 
+	fmt.Println("DB HOST:", config.Host)
+
 	db, err := sql.Open("postgres", psqlInfo)
 	if err != nil {
 		log.Fatalf("Failed to connect to the database: %v", err)

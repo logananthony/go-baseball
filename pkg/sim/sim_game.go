@@ -60,8 +60,18 @@ func SimulateGame(gameData []models.GameData) {
 	homeStarterThrows := utils.ConvertPitcherThrows(homeStarterInfo.PitchHand)
 
 	// Fetch batting orders based on starter handedness
-	awayBattingOrder, _ := fetcher.FetchBattingOrder(gameData[0].AwayTeam, *homeStarterThrows)
-	homeBattingOrder, _ := fetcher.FetchBattingOrder(gameData[0].HomeTeam, *awayStarterThrows)
+	homeBattingOrder, err := fetcher.FetchBattingOrder(gameData[0].HomeTeam, *awayStarterThrows)
+	if err != nil {
+		panic(err) // or return if wrapped in an API
+	}
+
+	awayBattingOrder, err := fetcher.FetchBattingOrder(gameData[0].AwayTeam, *homeStarterThrows)
+	if err != nil {
+		panic(err) // or return if wrapped in an API
+	}
+
+	// awayBattingOrder, _ := fetcher.FetchBattingOrder(gameData[0].AwayTeam, *homeStarterThrows)
+	// homeBattingOrder, _ := fetcher.FetchBattingOrder(gameData[0].HomeTeam, *awayStarterThrows)
 
 	homeLineup := []int{
 		homeBattingOrder.PlayerID1,
@@ -73,6 +83,12 @@ func SimulateGame(gameData []models.GameData) {
 		homeBattingOrder.PlayerID7,
 		homeBattingOrder.PlayerID8,
 		homeBattingOrder.PlayerID9,
+	}
+
+	for i, id := range homeLineup {
+		if id == 0 {
+			panic(fmt.Sprintf("Missing player in home batting order at slot %d — player ID is 0", i+1))
+		}
 	}
 
 	homeLineupGameYear := make([]int, 9)
@@ -90,6 +106,12 @@ func SimulateGame(gameData []models.GameData) {
 		awayBattingOrder.PlayerID7,
 		awayBattingOrder.PlayerID8,
 		awayBattingOrder.PlayerID9,
+	}
+
+	for i, id := range awayLineup {
+		if id == 0 {
+			panic(fmt.Sprintf("Missing player in away batting order at slot %d — player ID is 0", i+1))
+		}
 	}
 
 	awayLineupGameYear := make([]int, 9)

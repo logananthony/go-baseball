@@ -30,24 +30,25 @@ func GetSimulateGame(w http.ResponseWriter, req *http.Request) {
 
 	homeTeam := query.Get("homeTeam")
 	awayTeam := query.Get("awayTeam")
-	// nSims := query.Get("nSimulations")
-
-	homeSP, err1 := strconv.Atoi(query.Get("homeStartingPitcher"))
-	awaySP, err2 := strconv.Atoi(query.Get("awayStartingPitcher"))
-	gameYear, err3 := strconv.Atoi(query.Get("gameYear"))
+	homeSPStr := query.Get("homeStartingPitcher")
+	awaySPStr := query.Get("awayStartingPitcher")
+	gameYearStr := query.Get("gameYear")
 	nSimsStr := query.Get("nSims")
-	if nSimsStr == "" {
-		http.Error(w, "Missing nSims query param", http.StatusBadRequest)
-		return
-	}
-	nSims, err4 := strconv.Atoi(nSimsStr)
-	if err4 != nil {
-		http.Error(w, "Invalid nSims value", http.StatusBadRequest)
+
+	// Validate required params
+	if homeTeam == "" || awayTeam == "" || homeSPStr == "" || awaySPStr == "" || gameYearStr == "" || nSimsStr == "" {
+		http.Error(w, "Missing one or more required query parameters", http.StatusBadRequest)
 		return
 	}
 
-	if homeTeam == "" || awayTeam == "" || err1 != nil || err2 != nil || err3 != nil || err4 != nil {
-		http.Error(w, "Missing or invalid query parameters", http.StatusBadRequest)
+	// Parse numeric values
+	homeSP, err1 := strconv.Atoi(homeSPStr)
+	awaySP, err2 := strconv.Atoi(awaySPStr)
+	gameYear, err3 := strconv.Atoi(gameYearStr)
+	nSims, err4 := strconv.Atoi(nSimsStr)
+
+	if err1 != nil || err2 != nil || err3 != nil || err4 != nil {
+		http.Error(w, "Invalid query parameter format", http.StatusBadRequest)
 		return
 	}
 
