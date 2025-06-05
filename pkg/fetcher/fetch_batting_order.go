@@ -10,7 +10,7 @@ import (
 )
 
 func FetchBattingOrder(teamAbbr string, pitcherThrows string) (models.BattingOrder, error) {
-	path := "/Users/loganmottley/Desktop/Projects/go-baseball/pkg/fetcher/data/batting_order.csv"
+	path := "pkg/fetcher/data/batting_order.csv"
 	csvFile, err := os.Open(path)
 	if err != nil {
 		return models.BattingOrder{}, err
