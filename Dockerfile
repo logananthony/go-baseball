@@ -10,8 +10,11 @@ COPY go.mod go.sum ./
 # Download dependencies
 RUN go mod download
 
-# Copy the rest of the code
+# Copy all source code into the container
 COPY . .
+
+# Ensure data files are explicitly included
+COPY pkg/fetcher/data pkg/fetcher/data
 
 # Build the Go app
 RUN go build -o main .
