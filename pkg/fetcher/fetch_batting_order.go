@@ -1,6 +1,7 @@
 package fetcher
 
 import (
+	"fmt"
 	"os"
 	"strings"
 
@@ -27,5 +28,6 @@ func FetchBattingOrder(teamAbbr string, pitcherThrows string) (models.BattingOrd
 		}
 	}
 
-	return models.BattingOrder{}, nil // No match found
+	return models.BattingOrder{}, fmt.Errorf("no batting order found for team %s and pitcherThrows %s", teamAbbr, pitcherThrows)
+
 }
