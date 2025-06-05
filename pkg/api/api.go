@@ -35,7 +35,16 @@ func GetSimulateGame(w http.ResponseWriter, req *http.Request) {
 	homeSP, err1 := strconv.Atoi(query.Get("homeStartingPitcher"))
 	awaySP, err2 := strconv.Atoi(query.Get("awayStartingPitcher"))
 	gameYear, err3 := strconv.Atoi(query.Get("gameYear"))
-	nSims, err4 := strconv.Atoi(query.Get("nSims"))
+	nSimsStr := query.Get("nSims")
+	if nSimsStr == "" {
+		http.Error(w, "Missing nSims query param", http.StatusBadRequest)
+		return
+	}
+	nSims, err4 := strconv.Atoi(nSimsStr)
+	if err4 != nil {
+		http.Error(w, "Invalid nSims value", http.StatusBadRequest)
+		return
+	}
 
 	if homeTeam == "" || awayTeam == "" || err1 != nil || err2 != nil || err3 != nil || err4 != nil {
 		http.Error(w, "Missing or invalid query parameters", http.StatusBadRequest)
