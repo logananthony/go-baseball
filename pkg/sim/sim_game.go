@@ -13,7 +13,7 @@ import (
 	"github.com/logananthony/go-baseball/pkg/utils"
 )
 
-func SimulateGame(in []models.GameData) {
+func SimulateGame(gameData []models.GameData) {
 
 	db := config.ConnectDB()
 	defer db.Close()
@@ -37,54 +37,88 @@ func SimulateGame(in []models.GameData) {
 		GameId: uuid.New().String(),
 	}
 
-	homeLineup := []int{
-		in[0].HomeBatter1Id, in[0].HomeBatter2Id, in[0].HomeBatter3Id,
-		in[0].HomeBatter4Id, in[0].HomeBatter5Id, in[0].HomeBatter6Id,
-		in[0].HomeBatter7Id, in[0].HomeBatter8Id, in[0].HomeBatter9Id,
+	homeBullpen := fetcher.FetchBullpenOrder(gameData[0].HomeTeam)
+	awayBullpen := fetcher.FetchBullpenOrder(gameData[0].AwayTeam)
+
+	// === FIX: Fetch starter pitcher info early and append to simData.PlayerInfo ===
+	awayStarterInfoSlice, _ := fetcher.FetchPlayerInfo(db, &gameData[0].AwayStartingPitcher, &gameData[0].GameYear)
+	homeStarterInfoSlice, _ := fetcher.FetchPlayerInfo(db, &gameData[0].HomeStartingPitcher, &gameData[0].GameYear)
+	simData.PlayerInfo = append(simData.PlayerInfo, awayStarterInfoSlice...)
+	simData.PlayerInfo = append(simData.PlayerInfo, homeStarterInfoSlice...)
+
+	// Now safe to build playerInfoMap
+	playerInfoMap := make(map[int]models.MLBPlayerInfo)
+	for _, player := range simData.PlayerInfo {
+		playerInfoMap[*player.ID] = player
 	}
 
-	homeLineupGameYear := []int{
-		in[0].HomeBatter1GameYear, in[0].HomeBatter2GameYear, in[0].HomeBatter3GameYear,
-		in[0].HomeBatter4GameYear, in[0].HomeBatter5GameYear, in[0].HomeBatter6GameYear,
-		in[0].HomeBatter7GameYear, in[0].HomeBatter8GameYear, in[0].HomeBatter9GameYear,
+	// Lookup starter info safely
+	awayStarterInfo := playerInfoMap[gameData[0].AwayStartingPitcher]
+	awayStarterThrows := utils.ConvertPitcherThrows(awayStarterInfo.PitchHand)
+
+	homeStarterInfo := playerInfoMap[gameData[0].HomeStartingPitcher]
+	homeStarterThrows := utils.ConvertPitcherThrows(homeStarterInfo.PitchHand)
+
+	// Fetch batting orders based on starter handedness
+	awayBattingOrder, _ := fetcher.FetchBattingOrder(gameData[0].AwayTeam, *homeStarterThrows)
+	homeBattingOrder, _ := fetcher.FetchBattingOrder(gameData[0].HomeTeam, *awayStarterThrows)
+
+	homeLineup := []int{
+		homeBattingOrder.PlayerID1,
+		homeBattingOrder.PlayerID2,
+		homeBattingOrder.PlayerID3,
+		homeBattingOrder.PlayerID4,
+		homeBattingOrder.PlayerID5,
+		homeBattingOrder.PlayerID6,
+		homeBattingOrder.PlayerID7,
+		homeBattingOrder.PlayerID8,
+		homeBattingOrder.PlayerID9,
+	}
+
+	homeLineupGameYear := make([]int, 9)
+	for i := range homeLineupGameYear {
+		homeLineupGameYear[i] = gameData[0].GameYear
 	}
 
 	awayLineup := []int{
-		in[0].AwayBatter1Id, in[0].AwayBatter2Id, in[0].AwayBatter3Id,
-		in[0].AwayBatter4Id, in[0].AwayBatter5Id, in[0].AwayBatter6Id,
-		in[0].AwayBatter7Id, in[0].AwayBatter8Id, in[0].AwayBatter9Id,
+		awayBattingOrder.PlayerID1,
+		awayBattingOrder.PlayerID2,
+		awayBattingOrder.PlayerID3,
+		awayBattingOrder.PlayerID4,
+		awayBattingOrder.PlayerID5,
+		awayBattingOrder.PlayerID6,
+		awayBattingOrder.PlayerID7,
+		awayBattingOrder.PlayerID8,
+		awayBattingOrder.PlayerID9,
 	}
 
-	awayLineupGameYear := []int{
-		in[0].AwayBatter1GameYear, in[0].AwayBatter2GameYear, in[0].AwayBatter3GameYear,
-		in[0].AwayBatter4GameYear, in[0].AwayBatter5GameYear, in[0].AwayBatter6GameYear,
-		in[0].AwayBatter7GameYear, in[0].AwayBatter8GameYear, in[0].AwayBatter9GameYear,
+	awayLineupGameYear := make([]int, 9)
+	for i := range awayLineupGameYear {
+		awayLineupGameYear[i] = gameData[0].GameYear
 	}
 
 	homePitcherLineup := [][]int{
-		{in[0].HomeStartingPitcherId, in[0].HomeStartingPitcherGameYear},
-		{in[0].HomeBullpen1Id, in[0].HomeBullpen1GameYear},
-		{in[0].HomeBullpen2Id, in[0].HomeBullpen2GameYear},
-		{in[0].HomeBullpen3Id, in[0].HomeBullpen3GameYear},
-		{in[0].HomeBullpen4Id, in[0].HomeBullpen4GameYear},
-		{in[0].HomeBullpen5Id, in[0].HomeBullpen5GameYear},
-		{in[0].HomeBullpen6Id, in[0].HomeBullpen6GameYear},
-		{in[0].HomeBullpen7Id, in[0].HomeBullpen7GameYear},
-		{in[0].HomeBullpen8Id, in[0].HomeBullpen8GameYear},
-		{in[0].HomeBullpen9Id, in[0].HomeBullpen9GameYear},
+		{gameData[0].HomeStartingPitcher, gameData[0].GameYear},
+		{homeBullpen.PlayerID1, gameData[0].GameYear},
+		{homeBullpen.PlayerID2, gameData[0].GameYear},
+		{homeBullpen.PlayerID3, gameData[0].GameYear},
+		{homeBullpen.PlayerID4, gameData[0].GameYear},
+		{homeBullpen.PlayerID5, gameData[0].GameYear},
+		{homeBullpen.PlayerID6, gameData[0].GameYear},
+		{homeBullpen.PlayerID7, gameData[0].GameYear},
+		{homeBullpen.PlayerID8, gameData[0].GameYear},
 	}
 
 	awayPitcherLineup := [][]int{
-		{in[0].AwayStartingPitcherId, in[0].AwayStartingPitcherGameYear},
-		{in[0].AwayBullpen1Id, in[0].AwayBullpen1GameYear},
-		{in[0].AwayBullpen2Id, in[0].AwayBullpen2GameYear},
-		{in[0].AwayBullpen3Id, in[0].AwayBullpen3GameYear},
-		{in[0].AwayBullpen4Id, in[0].AwayBullpen4GameYear},
-		{in[0].AwayBullpen5Id, in[0].AwayBullpen5GameYear},
-		{in[0].AwayBullpen6Id, in[0].AwayBullpen6GameYear},
-		{in[0].AwayBullpen7Id, in[0].AwayBullpen7GameYear},
-		{in[0].AwayBullpen8Id, in[0].AwayBullpen8GameYear},
-		{in[0].AwayBullpen9Id, in[0].AwayBullpen9GameYear},
+		{gameData[0].AwayStartingPitcher, gameData[0].GameYear},
+		{awayBullpen.PlayerID1, gameData[0].GameYear},
+		{awayBullpen.PlayerID2, gameData[0].GameYear},
+		{awayBullpen.PlayerID3, gameData[0].GameYear},
+		{awayBullpen.PlayerID4, gameData[0].GameYear},
+		{awayBullpen.PlayerID5, gameData[0].GameYear},
+		{awayBullpen.PlayerID6, gameData[0].GameYear},
+		{awayBullpen.PlayerID7, gameData[0].GameYear},
+		{awayBullpen.PlayerID8, gameData[0].GameYear},
 	}
 
 	var homePitcher int
@@ -149,7 +183,7 @@ func SimulateGame(in []models.GameData) {
 		simData.BatterSprayDist = append(simData.BatterSprayDist, awayBatterSprayDist...)
 	}
 
-	for i := 0; i <= 9; i++ {
+	for i := 0; i <= 8; i++ {
 
 		homePitcher := homePitcherLineup[i][0]
 		homePitcherGameYear := homePitcherLineup[i][1]
@@ -231,9 +265,13 @@ func SimulateGame(in []models.GameData) {
 			if pullProbHome != nil && pitcherPulledHome {
 				if len(homePitcherLineup) > 0 {
 					homePitcherLineup = utils.FilterSliceSlices(homePitcherLineup, homePitcher)
-					homePitcherChosenIndex := rand.Intn(len(homePitcherLineup))
-					homePitcher = homePitcherLineup[homePitcherChosenIndex][0]
-					homePitcherGameYear = homePitcherLineup[homePitcherChosenIndex][1]
+					if len(homePitcherLineup) > 0 { // Ensure the lineup is not empty after filtering
+						homePitcherChosenIndex := rand.Intn(len(homePitcherLineup))
+						homePitcher = homePitcherLineup[homePitcherChosenIndex][0]
+						homePitcherGameYear = homePitcherLineup[homePitcherChosenIndex][1]
+					} else {
+						fmt.Println("Home pitcher lineup is empty after filtering, skipping pitcher substitution.")
+					}
 				} else {
 					fmt.Println("Home pitcher lineup is empty, skipping pitcher substitution.")
 				}
@@ -307,9 +345,13 @@ func SimulateGame(in []models.GameData) {
 			if pullProbAway != nil && pitcherPulledAway {
 				if len(awayPitcherLineup) > 0 {
 					awayPitcherLineup = utils.FilterSliceSlices(awayPitcherLineup, awayPitcher)
-					awayPitcherChosenIndex := rand.Intn(len(awayPitcherLineup))
-					awayPitcher = awayPitcherLineup[awayPitcherChosenIndex][0]
-					awayPitcherGameYear = awayPitcherLineup[awayPitcherChosenIndex][1]
+					if len(awayPitcherLineup) > 0 { // Ensure the lineup is not empty after filtering
+						awayPitcherChosenIndex := rand.Intn(len(awayPitcherLineup))
+						awayPitcher = awayPitcherLineup[awayPitcherChosenIndex][0]
+						awayPitcherGameYear = awayPitcherLineup[awayPitcherChosenIndex][1]
+					} else {
+						fmt.Println("Away pitcher lineup is empty after filtering, skipping pitcher substitution.")
+					}
 				} else {
 					fmt.Println("Away pitcher lineup is empty, skipping pitcher substitution.")
 				}
