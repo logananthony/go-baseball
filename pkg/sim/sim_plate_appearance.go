@@ -1,6 +1,8 @@
 package sim
 
 import (
+	"fmt"
+
 	"github.com/logananthony/go-baseball/pkg/config"
 	"github.com/logananthony/go-baseball/pkg/models"
 	"github.com/logananthony/go-baseball/pkg/utils"
@@ -13,10 +15,21 @@ func SimulatePlateAppearance(pa []models.PlateAppearanceData, sim []models.SimDa
 
 	playerInfoMap := make(map[int]models.MLBPlayerInfo)
 	for _, player := range sim[0].PlayerInfo {
-		playerInfoMap[*player.ID] = player
+		if player.ID != nil {
+			playerInfoMap[*player.ID] = player
+		}
 	}
-	batterInfo := playerInfoMap[pa[0].BatterId]
-	pitcherInfo := playerInfoMap[pa[0].PitcherId]
+
+	batterInfo, ok := playerInfoMap[pa[0].BatterId]
+	if !ok {
+		panic(fmt.Sprintf("Missing batter info for ID: %d", pa[0].BatterId))
+	}
+
+	pitcherInfo, ok := playerInfoMap[pa[0].PitcherId]
+	if !ok {
+		panic(fmt.Sprintf("Missing pitcher info for ID: %d", pa[0].PitcherId))
+	}
+
 	batterStands := batterInfo.BatSide
 	pitcherThrows := pitcherInfo.PitchHand
 

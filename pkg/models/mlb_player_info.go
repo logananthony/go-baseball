@@ -1,6 +1,5 @@
 package models
 
-
 type MLBPlayerInfo struct {
 	ID               *int
 	FullName         *string
@@ -25,4 +24,3 @@ type MLBPlayerInfo struct {
 	Position         *string
 	Season           *string
 }
-
