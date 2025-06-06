@@ -39,19 +39,9 @@ func main() {
 	}
 	defer db.Close()
 
-	server := api.NewAPIServer("0.0.0.0:8080", db)
+	server := api.NewAPIServer(":443", db)
 	if err := server.Run(); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
-
-	// sim.SimulateGame([]models.GameData{
-	// 	{
-	// 		HomeTeam:            "BOS",
-	// 		AwayTeam:            "DET",
-	// 		HomeStartingPitcher: 601713,
-	// 		AwayStartingPitcher: 656427,
-	// 		GameYear:            2024,
-	// 	},
-	// })
 
 }
