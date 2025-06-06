@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"sync"
 
 	"github.com/gorilla/mux"
 	"github.com/logananthony/go-baseball/pkg/config"
@@ -63,12 +64,23 @@ func GetSimulateGame(w http.ResponseWriter, req *http.Request) {
 		GameYear:            gameYear,
 	}
 
+	sem := make(chan struct{}, 10)
+	var wg sync.WaitGroup
+
 	for i := 0; i < nSims; i++ {
-		sim.SimulateGame([]models.GameData{gameData})
+		sem <- struct{}{}
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			sim.SimulateGame([]models.GameData{gameData})
+		}(i)
 	}
 
+	wg.Wait()
+
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("Game simulation complete"))
+	w.Write([]byte("Simulations complete"))
 }
 
 func (s *APIServer) Run() error {
