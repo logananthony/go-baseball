@@ -39,7 +39,7 @@ func main() {
 	}
 	defer db.Close()
 
-	server := api.NewAPIServer(":443", db)
+	server := api.NewAPIServer(":8080", db)
 	if err := server.Run(); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
