@@ -14,6 +14,21 @@ import (
 	"github.com/logananthony/go-baseball/pkg/sim"
 )
 
+func corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
 type APIServer struct {
 	addr string
 	db   *sql.DB
@@ -151,9 +166,13 @@ func (s *APIServer) GetJobStatus(w http.ResponseWriter, req *http.Request) {
 
 func (s *APIServer) Run() error {
 	router := mux.NewRouter()
+
+	// Add CORS middleware to all routes
+	router.Use(corsMiddleware)
+
 	subrouter := router.PathPrefix("/api/v1/").Subrouter()
-	subrouter.HandleFunc("/simulate", s.GetSimulateGame).Methods("GET")
-	subrouter.HandleFunc("/status", s.GetJobStatus).Methods("GET")
+	subrouter.HandleFunc("/simulate", s.GetSimulateGame).Methods("GET", "OPTIONS")
+	subrouter.HandleFunc("/status", s.GetJobStatus).Methods("GET", "OPTIONS")
 
 	log.Printf("Starting API server on %s", s.addr)
 	return http.ListenAndServe(s.addr, router)
