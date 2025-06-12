@@ -76,6 +76,7 @@ func (s *APIServer) GetSimulateGame(w http.ResponseWriter, req *http.Request) {
 		HomeStartingPitcher: homeSP,
 		AwayStartingPitcher: awaySP,
 		GameYear:            gameYear,
+		JobId:               jobID,
 	}
 
 	// Insert job into Postgres

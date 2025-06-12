@@ -34,6 +34,7 @@ func SimulateGame(gameData []models.GameData) {
 
 	gameRes := models.GameResult{
 		GameId: uuid.New().String(),
+		JobId:  gameData[0].JobId,
 	}
 
 	homeBullpen := fetcher.FetchBullpenOrder(gameData[0].HomeTeam)
@@ -461,33 +462,6 @@ func AppendPlateAppearanceBotResult(paResult models.PlateAppearanceResult, awayS
 	paResult.On3b = append(paResult.On3b, homeBaseState[2])
 }
 
-// func AppendSimData(simData *models.SimData,
-// 	playerInfo models.MLBPlayerInfo,
-// 	leagueSwing models.BatterSwingPercentageLeague,
-// 	leagueContact models.BatterContactPercentageLeague,
-// 	leaguePitchCovMeans models.PitcherCovarianceMeanLeague,
-// 	batterSwing models.BatterSwingPercentage,
-// 	batterContact models.BatterContactPercentage,
-// 	batterHitType models.BatterHitType,
-// 	pitcherPitchFreq models.PitcherCountPitchFreq,
-// 	pitcherCovMeans models.PitcherCovarianceMean,
-// 	batterEVDist models.EVDistribution,
-// 	batterLADist models.LADistribution,
-// 	batterSprayDist models.SprayDistribution) {
-// 	simData.PlayerInfo = append(simData.PlayerInfo, playerInfo)
-// 	simData.LeagueSwing = append(simData.LeagueSwing, leagueSwing)
-// 	simData.LeagueContact = append(simData.LeagueContact, leagueContact)
-// 	simData.LeaguePitchCovMeans = append(simData.LeaguePitchCovMeans, leaguePitchCovMeans)
-// 	simData.BatterSwing = append(simData.BatterSwing, batterSwing)
-// 	simData.BatterContact = append(simData.BatterContact, batterContact)
-// 	simData.BatterHitType = append(simData.BatterHitType, batterHitType)
-// 	simData.PitcherPitchFreq = append(simData.PitcherPitchFreq, pitcherPitchFreq)
-// 	simData.PitcherCovMeans = append(simData.PitcherCovMeans, pitcherCovMeans)
-// 	simData.BatterEVDist = append(simData.BatterEVDist, batterEVDist)
-// 	simData.BatterLADist = append(simData.BatterLADist, batterLADist)
-// 	simData.BatterSprayDist = append(simData.BatterSprayDist, batterSprayDist)
-// }
-
 func AppendGameResult(gameRes *models.GameResult, paResult models.PlateAppearanceResult) {
 	gameRes.PAResult.PitcherGameYear = append(gameRes.PAResult.PitcherGameYear, paResult.PitcherGameYear...)
 	gameRes.PAResult.PitcherFullName = append(gameRes.PAResult.PitcherFullName, paResult.PitcherFullName...)
@@ -628,7 +602,7 @@ func postGameResults(gameRes []models.GameResult, db *sql.DB) {
 	gameYear := 2024
 
 	for _, result := range gameRes {
-		err := poster.InsertGameResult(db, result.GameId, gameYear, result)
+		err := poster.InsertGameResult(db, result.GameId, result.JobId, gameYear, result)
 		if err != nil {
 			fmt.Println("Error inserting game result:", err)
 		}

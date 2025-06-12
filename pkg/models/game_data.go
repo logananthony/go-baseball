@@ -6,4 +6,5 @@ type GameData struct {
 	HomeStartingPitcher int
 	AwayStartingPitcher int
 	GameYear            int
+	JobId               string
 }

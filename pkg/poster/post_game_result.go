@@ -22,7 +22,7 @@ func toNullableInt(slice []int, i int) int {
 	return slice[i]
 }
 
-func InsertGameResult(db *sql.DB, gameId string, gameYear int, result models.GameResult) error {
+func InsertGameResult(db *sql.DB, gameId string, jobId string, gameYear int, result models.GameResult) error {
 	pa := result.PAResult
 
 	// Ensure all slices in PlateAppearanceResult are of the same length
@@ -41,7 +41,7 @@ func InsertGameResult(db *sql.DB, gameId string, gameYear int, result models.Gam
                 pitch_type, plate_x, plate_z, zone,
                 velocity, is_strike, is_swing, is_contact,
                 event_type, exit_velocity, launch_angle, spray_angle,
-                created_at
+                created_at, jobId
             ) VALUES (
                 $1, $2, $3, $4, $5,
                 $6, $7, $8, $9,
@@ -53,7 +53,7 @@ func InsertGameResult(db *sql.DB, gameId string, gameYear int, result models.Gam
                 $23, $24, $25, $26,
                 $27, $28, $29, $30,
                 $31, $32, $33, $34,
-                $35
+                $35, $36
             )
         `,
 			gameId, gameYear,
@@ -67,6 +67,7 @@ func InsertGameResult(db *sql.DB, gameId string, gameYear int, result models.Gam
 			toNullableString(pa.PitchType, i), pa.PlateX[i], pa.PlateZ[i], pa.Zone[i],
 			pa.Velocity[i], pa.IsStrike[i], pa.IsSwing[i], toNullableString(pa.IsContact, i),
 			toNullableString(pa.EventType, i), pa.ExitVelocity[i], pa.LaunchAngle[i], pa.SprayAngle[i], time.Now(),
+			jobId,
 		)
 
 		if err != nil {
