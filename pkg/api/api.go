@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
-	"strconv"
 	"sync"
 
 	"github.com/google/uuid"
@@ -42,54 +41,50 @@ func NewAPIServer(addr string, db *sql.DB) *APIServer {
 }
 
 func (s *APIServer) GetSimulateGame(w http.ResponseWriter, req *http.Request) {
-	query := req.URL.Query()
+	type SimRequest struct {
+		UserID              string `json:"userId"`
+		HomeTeam            string `json:"homeTeam"`
+		AwayTeam            string `json:"awayTeam"`
+		HomeStartingPitcher int    `json:"homeStartingPitcher"`
+		AwayStartingPitcher int    `json:"awayStartingPitcher"`
+		GameYear            int    `json:"gameYear"`
+		NSims               int    `json:"nSims"`
+	}
 
-	userID := query.Get("userId")
-	homeTeam := query.Get("homeTeam")
-	awayTeam := query.Get("awayTeam")
-	homeSPStr := query.Get("homeStartingPitcher")
-	awaySPStr := query.Get("awayStartingPitcher")
-	gameYearStr := query.Get("gameYear")
-	nSimsStr := query.Get("nSims")
-
-	// Validate required params
-	if userID == "" || homeTeam == "" || awayTeam == "" || homeSPStr == "" || awaySPStr == "" || gameYearStr == "" || nSimsStr == "" {
-		http.Error(w, "Missing one or more required query parameters", http.StatusBadRequest)
+	var body SimRequest
+	if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+		http.Error(w, "Invalid JSON body", http.StatusBadRequest)
 		return
 	}
 
-	// Parse numeric values
-	homeSP, err1 := strconv.Atoi(homeSPStr)
-	awaySP, err2 := strconv.Atoi(awaySPStr)
-	gameYear, err3 := strconv.Atoi(gameYearStr)
-	nSims, err4 := strconv.Atoi(nSimsStr)
-	if err1 != nil || err2 != nil || err3 != nil || err4 != nil {
-		http.Error(w, "Invalid query parameter format", http.StatusBadRequest)
+	// Validate required fields
+	if body.UserID == "" || body.HomeTeam == "" || body.AwayTeam == "" ||
+		body.HomeStartingPitcher == 0 || body.AwayStartingPitcher == 0 ||
+		body.GameYear == 0 || body.NSims == 0 {
+		http.Error(w, "Missing one or more required fields", http.StatusBadRequest)
 		return
 	}
 
 	jobID := uuid.New().String()
 
 	gameData := models.GameData{
-		HomeTeam:            homeTeam,
-		AwayTeam:            awayTeam,
-		HomeStartingPitcher: homeSP,
-		AwayStartingPitcher: awaySP,
-		GameYear:            gameYear,
+		HomeTeam:            body.HomeTeam,
+		AwayTeam:            body.AwayTeam,
+		HomeStartingPitcher: body.HomeStartingPitcher,
+		AwayStartingPitcher: body.AwayStartingPitcher,
+		GameYear:            body.GameYear,
 		JobId:               jobID,
 	}
 
-	// Insert job into Postgres
 	_, err := s.db.Exec(`
 		INSERT INTO simulation_jobs (id, user_id, status)
-		VALUES ($1, $2, 'pending')`, jobID, userID)
+		VALUES ($1, $2, 'pending')`, jobID, body.UserID)
 	if err != nil {
 		log.Printf("Failed to create job in DB: %v", err)
 		http.Error(w, "Failed to create job", http.StatusInternalServerError)
 		return
 	}
 
-	// Launch simulation in background
 	go func(jid, uid string, data models.GameData, n int) {
 		_, err := s.db.Exec(`UPDATE simulation_jobs SET status = 'running', updated_at = NOW() WHERE id = $1`, jid)
 		if err != nil {
@@ -118,9 +113,8 @@ func (s *APIServer) GetSimulateGame(w http.ResponseWriter, req *http.Request) {
 		if err != nil {
 			log.Printf("Failed to update job %s to completed: %v", jid, err)
 		}
-	}(jobID, userID, gameData, nSims)
+	}(jobID, body.UserID, gameData, body.NSims)
 
-	// Respond with job ID
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{
 		"jobId": jobID,
@@ -172,7 +166,7 @@ func (s *APIServer) Run() error {
 	router.Use(corsMiddleware)
 
 	subrouter := router.PathPrefix("/api/v1/").Subrouter()
-	subrouter.HandleFunc("/simulate", s.GetSimulateGame).Methods("GET", "OPTIONS")
+	subrouter.HandleFunc("/simulate", s.GetSimulateGame).Methods("POST", "OPTIONS")
 	subrouter.HandleFunc("/status", s.GetJobStatus).Methods("GET", "OPTIONS")
 
 	log.Printf("Starting API server on %s", s.addr)
