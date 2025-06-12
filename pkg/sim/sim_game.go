@@ -3,7 +3,6 @@ package sim
 import (
 	"database/sql"
 	"fmt"
-	"math/rand"
 
 	"github.com/google/uuid"
 	"github.com/logananthony/go-baseball/pkg/config"
@@ -284,13 +283,24 @@ func SimulateGame(gameData []models.GameData) {
 				pitcherPulledHome = false
 			}
 
+			usedPitchers := map[int]bool{}
+
 			if pullProbHome != nil && pitcherPulledHome {
 				if len(homePitcherLineup) > 0 {
 					homePitcherLineup = utils.FilterSliceSlices(homePitcherLineup, homePitcher)
-					if len(homePitcherLineup) > 0 { // Ensure the lineup is not empty after filtering
-						homePitcherChosenIndex := rand.Intn(len(homePitcherLineup))
-						homePitcher = homePitcherLineup[homePitcherChosenIndex][0]
-						homePitcherGameYear = homePitcherLineup[homePitcherChosenIndex][1]
+					if len(homePitcherLineup) > 0 {
+						// homePitcherChosenIndex := rand.Intn(len(homePitcherLineup))
+						// homePitcher = homePitcherLineup[homePitcherChosenIndex][0]
+						// homePitcherGameYear = homePitcherLineup[homePitcherChosenIndex][1]
+						selected := utils.SelectBullpenPitcherLineup(homePitcherLineup, inning, usedPitchers)
+						if selected != nil {
+							homePitcher = selected[0]
+							homePitcherGameYear = selected[1]
+							usedPitchers[homePitcher] = true
+						} else {
+							fmt.Println("No eligible pitchers left for inning", inning)
+						}
+
 					} else {
 						fmt.Println("Home pitcher lineup is empty after filtering, skipping pitcher substitution.")
 					}
@@ -364,13 +374,23 @@ func SimulateGame(gameData []models.GameData) {
 				pitcherPulledAway = false
 			}
 
+			usedPitchers := map[int]bool{}
+
 			if pullProbAway != nil && pitcherPulledAway {
 				if len(awayPitcherLineup) > 0 {
 					awayPitcherLineup = utils.FilterSliceSlices(awayPitcherLineup, awayPitcher)
 					if len(awayPitcherLineup) > 0 { // Ensure the lineup is not empty after filtering
-						awayPitcherChosenIndex := rand.Intn(len(awayPitcherLineup))
-						awayPitcher = awayPitcherLineup[awayPitcherChosenIndex][0]
-						awayPitcherGameYear = awayPitcherLineup[awayPitcherChosenIndex][1]
+						// awayPitcherChosenIndex := rand.Intn(len(awayPitcherLineup))
+						// awayPitcher = awayPitcherLineup[awayPitcherChosenIndex][0]
+						// awayPitcherGameYear = awayPitcherLineup[awayPitcherChosenIndex][1]
+						selected := utils.SelectBullpenPitcherLineup(awayPitcherLineup, inning, usedPitchers)
+						if selected != nil {
+							awayPitcher = selected[0]
+							awayPitcherGameYear = selected[1]
+							usedPitchers[awayPitcher] = true
+						} else {
+							fmt.Println("No eligible pitchers left for inning", inning)
+						}
 					} else {
 						fmt.Println("Away pitcher lineup is empty after filtering, skipping pitcher substitution.")
 					}
