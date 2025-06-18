@@ -3,6 +3,7 @@ package fetcher
 import (
 	"database/sql"
 	"fmt"
+
 	_ "github.com/lib/pq"
 	"github.com/logananthony/go-baseball/pkg/models"
 )
@@ -27,7 +28,6 @@ SELECT
     COALESCE(level, '-1') as level
 FROM batter_hit_type
 WHERE batter = $1 AND game_year = $2;
-
 	`
 
 	rows, err := db.Query(query, batterId, gameYear)
@@ -37,6 +37,7 @@ WHERE batter = $1 AND game_year = $2;
 	defer rows.Close()
 
 	var results []models.BatterHitType
+	count := 0
 
 	for rows.Next() {
 		var rec models.BatterHitType
@@ -57,13 +58,13 @@ WHERE batter = $1 AND game_year = $2;
 			&rec.Level,
 		)
 		if err != nil {
+			fmt.Printf("⚠️  Scan failed for batter %d, year %d: %v\n", batterId, gameYear, err)
 			return nil, fmt.Errorf("scan error: %w", err)
 		}
 		results = append(results, rec)
+		count++
 	}
 
-	//fmt.Printf("Rows fetched: %d\n", len(results))
-
+	// fmt.Printf("✅ Fetched %d hit type rows for batter %d, year %d\n", count, batterId, gameYear)
 	return results, nil
 }
-

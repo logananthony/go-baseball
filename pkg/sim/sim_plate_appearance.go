@@ -500,16 +500,3 @@ func SimulatePlateAppearance(pa []models.PlateAppearanceData, sim []models.SimDa
 	}
 
 }
-
-// func postGameResults(paResult []models.PlateAppearanceResult, db *sql.DB) {
-// 	gameId := uuid.New().String()
-// 	gameYear := 2024
-
-// 	for _, result := range paResult {
-
-// 		err := poster.InsertGameResult(db, gameId, gameYear, result)
-// 		if err != nil {
-// 			fmt.Println("Error inserting game result:", err)
-// 		}
-// 	}
-// }

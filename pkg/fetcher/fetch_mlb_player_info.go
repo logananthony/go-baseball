@@ -3,17 +3,12 @@ package fetcher
 import (
 	"database/sql"
 	"fmt"
-	//"strings"
 
 	"github.com/logananthony/go-baseball/pkg/models"
 )
 
-// FetchPlayerInfo retrieves a player's info by ID, full name, and/or season (any can be nil).
-func FetchPlayerInfo(db *sql.DB, id *int, season *int) ([]models.MLBPlayerInfo, error) {
-	if id == nil || season == nil {
-		return nil, fmt.Errorf("id and season must be provided")
-	}
-
+// FetchPlayerInfo retrieves a player's info by ID and season.
+func FetchPlayerInfo(db *sql.DB, id int) ([]models.MLBPlayerInfo, error) {
 	query := `
 SELECT 
 	id, fullName, firstName, lastName, primaryNumber, birthDate, currentAge,
@@ -21,13 +16,11 @@ SELECT
 	batSide, pitchHand, mlbDebutDate, strikeZoneTop, strikeZoneBottom,
 	teamId, teamName, position, season
 FROM mlb_player_info
-WHERE id = $1 AND season = $2;
+WHERE id = $1
+ORDER BY season DESC NULLS LAST
+LIMIT 1;
 `
-
-//fmt.Printf("Final query: %s\n", query)
-//fmt.Printf("Args: %v %v\n", *id, *season)
-
-	rows, err := db.Query(query, *id, *season)
+	rows, err := db.Query(query, id)
 	if err != nil {
 		return nil, fmt.Errorf("query error: %w", err)
 	}
@@ -68,4 +61,3 @@ WHERE id = $1 AND season = $2;
 
 	return results, nil
 }
-

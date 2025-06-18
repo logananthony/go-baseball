@@ -22,5 +22,5 @@ type MLBPlayerInfo struct {
 	TeamID           *int
 	TeamName         *string
 	Position         *string
-	Season           *string
+	Season           *int
 }

@@ -44,13 +44,9 @@ func NewAPIServer(addr string, db *sql.DB) *APIServer {
 
 func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 	type SimRequest struct {
-		UserID              string `json:"userId"`
-		HomeTeam            string `json:"homeTeam"`
-		AwayTeam            string `json:"awayTeam"`
-		HomeStartingPitcher int    `json:"homeStartingPitcher"`
-		AwayStartingPitcher int    `json:"awayStartingPitcher"`
-		GameYear            int    `json:"gameYear"`
-		NSims               int    `json:"nSims"`
+		UserID string `json:"userId"`
+		GamePk int    `json:"gamePk"`
+		NSims  int    `json:"nSims"`
 	}
 
 	var body SimRequest
@@ -59,23 +55,21 @@ func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// Validate required fields
-	if body.UserID == "" || body.HomeTeam == "" || body.AwayTeam == "" ||
-		body.HomeStartingPitcher == 0 || body.AwayStartingPitcher == 0 ||
-		body.GameYear == 0 || body.NSims == 0 {
+	if body.UserID == "" || body.GamePk == 0 || body.NSims == 0 {
 		http.Error(w, "Missing one or more required fields", http.StatusBadRequest)
+		return
+	}
+
+	if body.NSims > 2430 {
+		http.Error(w, "Too many simulations requested (max 1000)", http.StatusBadRequest)
 		return
 	}
 
 	jobID := uuid.New().String()
 
 	gameData := models.GameData{
-		HomeTeam:            body.HomeTeam,
-		AwayTeam:            body.AwayTeam,
-		HomeStartingPitcher: body.HomeStartingPitcher,
-		AwayStartingPitcher: body.AwayStartingPitcher,
-		GameYear:            body.GameYear,
-		JobId:               jobID,
+		GamePk: body.GamePk,
+		JobId:  jobID,
 	}
 
 	_, err := s.db.Exec(`
