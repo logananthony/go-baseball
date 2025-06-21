@@ -322,21 +322,22 @@ func SimulatePlateAppearance(pa []models.PlateAppearanceData, sim []models.SimDa
 		on3b_sequence = append(on3b_sequence, pa[0].On3b)
 
 		// log.Printf(
-		// 	"Pitch #%d | Type=%s | PlateX=%.2f PlateZ=%.2f | Zone=%d | Velo=%.1f | Strike=%t | Swing=%t | Contact=%s | BatterID=%d | Stand=%s | Throws=%s | EV_Bucket=%s | Vel_Bucket=%s",
+		// 	"Pitch #%d | Type=%s | PlateX=%.2f PlateZ=%.2f | Zone=%d | Velo=%.1f | Strike=%s | Swing=%t | Contact=%t | BatterID=%d | PitcherID=%d | Stand=%s | Throws=%s | EV_Bucket=%s | Vel_Bucket=%s",
 		// 	pitch_count,
 		// 	pitch_type_result,
 		// 	location_velo_result[0],
 		// 	location_velo_result[1],
-		// 	zone_result,
-		// 	location_velo_result[2],
-		// 	is_strike_result,
-		// 	is_swing_result,
-		// 	is_contact_result,
-		// 	pa[0].BatterId,
-		// 	*batterStands,
-		// 	*pitcherThrows,
-		// 	// utils.GetEVBucket(location_velo_result[2]),       // if EV were used
-		// 	// utils.GetVelocityBucket(location_velo_result[2]), // for filtering dist
+		// 	zone_result,             // int
+		// 	location_velo_result[2], // float64
+		// 	is_strike_result,        // string
+		// 	is_swing_result,         // bool
+		// 	is_contact_result,       // bool
+		// 	pa[0].BatterId,          // int
+		// 	pa[0].PitcherId,         // int
+		// 	// safeString(batterStands),  // helper func below
+		// 	// safeString(pitcherThrows), // helper func below
+		// 	"TODO_EV_Bucket",  // placeholder if EV bucket not ready
+		// 	"TODO_Vel_Bucket", // same here
 		// )
 
 		// log.Printf("Pitch #%d", is_contact_result)

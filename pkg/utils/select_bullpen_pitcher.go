@@ -1,41 +1,61 @@
 package utils
 
 import (
+	"database/sql"
+	"log"
 	"math/rand"
 )
 
-var bullpenMatrix = map[int]struct {
-	IDs   []int
-	Probs []float64
-}{
-	1: {[]int{1, 2, 3}, []float64{1.0 / 3, 1.0 / 3, 1.0 / 3}},
-	2: {[]int{1, 2, 3}, []float64{1.0 / 3, 1.0 / 3, 1.0 / 3}},
-	3: {[]int{1, 2, 3}, []float64{1.0 / 3, 1.0 / 3, 1.0 / 3}},
-	4: {[]int{3, 4, 5, 6}, []float64{0.4, 0.2, 0.2, 0.2}},
-	5: {[]int{3, 4, 5, 6}, []float64{0.1, 0.4, 0.3, 0.2}},
-	6: {[]int{4, 5, 6}, []float64{1.0 / 3, 1.0 / 3, 1.0 / 3}},
-	7: {[]int{4, 5, 6}, []float64{1.0 / 6, 2.0 / 6, 3.0 / 6}},
-	8: {[]int{5, 6, 7}, []float64{1.0 / 6, 2.0 / 6, 3.0 / 6}},
-	9: {[]int{7, 8}, []float64{0.2, 0.8}},
-}
+func SelectBullpenPitcherLineup(
+	db *sql.DB,
+	pitcherLineup [][]int,
+	inning int,
+	runDiff int,
+	runnersOn int,
+	used map[int]bool,
+) []int {
+	query := `
+		SELECT role, probability
+		FROM bullpen_role_probs
+		WHERE inning = $1 AND run_diff = $2 AND runners_on = $3
+	`
+	rows, err := db.Query(query, inning, runDiff, runnersOn)
+	if err != nil {
+		log.Printf("❌ Failed to query bullpen_role_probs: %v", err)
+		return nil
+	}
+	defer rows.Close()
 
-func SelectBullpenPitcherLineup(pitcherLineup [][]int, inning int, used map[int]bool) []int {
-	entry, ok := bullpenMatrix[inning]
-	if !ok {
+	var roles []int
+	var probs []float64
+
+	for rows.Next() {
+		var role int
+		var prob float64
+		if err := rows.Scan(&role, &prob); err != nil {
+			log.Printf("❌ Error scanning row: %v", err)
+			continue
+		}
+		roles = append(roles, role)
+		probs = append(probs, prob)
+	}
+
+	if len(roles) == 0 {
+		log.Printf("⚠️ No bullpen data found for inning=%d run_diff=%d runners_on=%d", inning, runDiff, runnersOn)
 		return nil
 	}
 
 	var eligible [][]int
 	var weights []float64
 
-	for i, idx := range entry.IDs {
-		if idx >= len(pitcherLineup) {
+	for i, roleIdx := range roles {
+		if roleIdx >= len(pitcherLineup) {
 			continue
 		}
-		pid := pitcherLineup[idx][0]
+		pid := pitcherLineup[roleIdx][0]
 		if !used[pid] {
-			eligible = append(eligible, pitcherLineup[idx])
-			weights = append(weights, entry.Probs[i])
+			eligible = append(eligible, pitcherLineup[roleIdx])
+			weights = append(weights, probs[i])
 		}
 	}
 
@@ -43,6 +63,7 @@ func SelectBullpenPitcherLineup(pitcherLineup [][]int, inning int, used map[int]
 		return nil
 	}
 
+	// Normalize weights
 	total := 0.0
 	for _, w := range weights {
 		total += w
@@ -51,6 +72,7 @@ func SelectBullpenPitcherLineup(pitcherLineup [][]int, inning int, used map[int]
 		weights[i] /= total
 	}
 
+	// Weighted random choice
 	r := rand.Float64()
 	cumulative := 0.0
 	for i, prob := range weights {
