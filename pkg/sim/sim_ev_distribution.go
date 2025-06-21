@@ -1,6 +1,7 @@
 package sim
 
 import (
+	"database/sql"
 	"log"
 	"math"
 	"math/rand"
@@ -16,27 +17,63 @@ func AggregateEVDistributions(dists []models.EVDistribution) models.EVDistributi
 	}
 
 	var totalMean, totalStd float64
-	skew := dists[0].Skew // Assume all skew values are the same
-	count := len(dists)
+	var meanCount, stdCount int
+
+	skew := sql.NullFloat64{Float64: -0.8, Valid: true} // default fallback
+	for _, d := range dists {
+		if d.Skew.Valid {
+			skew = d.Skew
+			break
+		}
+	}
 
 	for _, d := range dists {
-		totalMean += d.Mean
-		totalStd += d.Std
+		if d.Mean.Valid {
+			totalMean += d.Mean.Float64
+			meanCount++
+		}
+		if d.Std.Valid {
+			totalStd += d.Std.Float64
+			stdCount++
+		}
+	}
+
+	avgMean := sql.NullFloat64{Valid: meanCount > 0}
+	avgStd := sql.NullFloat64{Valid: stdCount > 0}
+
+	if avgMean.Valid {
+		avgMean.Float64 = totalMean / float64(meanCount)
+	} else {
+		log.Println("No valid mean found; returning 0")
+	}
+	if avgStd.Valid {
+		avgStd.Float64 = totalStd / float64(stdCount)
+	} else {
+		log.Println("No valid std found; returning 0")
+	}
+
+	// Use first row as template for identifiers (or fallback to nulls)
+	template := models.EVDistribution{}
+	for _, d := range dists {
+		if d.Batter != 0 {
+			template = d
+			break
+		}
 	}
 
 	return models.EVDistribution{
-		GameYear:       dists[0].GameYear,
-		Batter:         dists[0].Batter,
-		Stand:          dists[0].Stand,
-		PThrows:        dists[0].PThrows,
-		Outcome:        dists[0].Outcome,
-		PitchType:      dists[0].PitchType,
-		Zone:           dists[0].Zone,
-		VelocityBucket: dists[0].VelocityBucket,
+		GameYear:       template.GameYear,
+		Batter:         template.Batter,
+		Stand:          template.Stand,
+		PThrows:        template.PThrows,
+		Outcome:        template.Outcome,
+		PitchType:      template.PitchType,
+		Zone:           template.Zone,
+		VelocityBucket: template.VelocityBucket,
 		Skew:           skew,
-		Mean:           totalMean / float64(count),
-		Std:            totalStd / float64(count),
-		N:              -1,
+		Mean:           avgMean,
+		Std:            avgStd,
+		N:              sql.NullInt32{Int32: int32(len(dists)), Valid: true},
 		Level:          "aggregated",
 	}
 }
@@ -45,21 +82,21 @@ func AggregateEVDistributions(dists []models.EVDistribution) models.EVDistributi
 func SampleFromSkewNormal(mean, std, skew float64) float64 {
 	rand.Seed(time.Now().UnixNano())
 
-	// Generate two standard normals
 	u0 := rand.NormFloat64()
 	v := rand.NormFloat64()
 
-	// Compute delta from skew
 	delta := skew / math.Sqrt(1+skew*skew)
-
-	// Create Z ~ SkewNormal(0, 1, skew)
 	z := delta*u0 + math.Sqrt(1-delta*delta)*v
-	sample := mean + std*z
-	return sample
+
+	return mean + std*z
 }
 
 // SampleFromAggregatedDistribution draws using the aggregated parameters
 func SampleFromAggregatedDistribution(d models.EVDistribution) float64 {
-	return SampleFromSkewNormal(d.Mean, d.Std, d.Skew)
-}
+	if !d.Mean.Valid || !d.Std.Valid || !d.Skew.Valid {
+		log.Printf("Skipping sample: missing Mean/Std/Skew in %+v", d)
+		return 0.0
+	}
 
+	return SampleFromSkewNormal(d.Mean.Float64, d.Std.Float64, d.Skew.Float64)
+}

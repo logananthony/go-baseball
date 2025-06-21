@@ -3,6 +3,7 @@ package sim
 import (
 	"database/sql"
 	"fmt"
+	"log"
 
 	"github.com/google/uuid"
 	"github.com/logananthony/go-baseball/pkg/config"
@@ -47,8 +48,8 @@ func SimulateGame(gameData []models.GameData) {
 		JobId:  gameData[0].JobId,
 	}
 
-	homeBullpen := fetcher.FetchBullpenOrder(homeTeam)
-	awayBullpen := fetcher.FetchBullpenOrder(awayTeam)
+	homeBullpen := fetcher.FetchBullpenOrder(db, homeTeam, season)
+	awayBullpen := fetcher.FetchBullpenOrder(db, awayTeam, season)
 
 	// === FIX: Fetch starter pitcher info early and append to simData.PlayerInfo ===
 	awayStarterInfoSlice, _ := fetcher.FetchPlayerInfo(db, awayStartingPitcher)
@@ -87,6 +88,9 @@ func SimulateGame(gameData []models.GameData) {
 		{homeBullpen.PlayerID8, season},
 	}
 
+	if awayBullpen == nil {
+		log.Fatalf("awayBullpen is nil for team: %s, season: %d", awayTeam, season)
+	}
 	awayPitcherLineup := [][]int{
 		{awayStartingPitcher, season},
 		{awayBullpen.PlayerID1, season},
@@ -131,17 +135,17 @@ func SimulateGame(gameData []models.GameData) {
 			awayBatterSwingProbs, _ := fetcher.FetchBatterSwingPercentage(db, awayBatter.PlayerId, awayBatterGameYear)
 			awayBatterContactProbs, _ := fetcher.FetchBatterContactPercentage(db, awayBatter.PlayerId, awayBatterGameYear)
 			awayBatterHitProbs, _ := fetcher.FetchBatterHitType(db, awayBatter.PlayerId, awayBatterGameYear)
-			awayBatterEvDist := fetcher.FetchEVDistributions(db, awayBatterGameYear, awayBatter.PlayerId)
-			awayBatterLaDist := fetcher.FetchLADistributions(db, awayBatterGameYear, awayBatter.PlayerId)
-			awayBatterSprayDist := fetcher.FetchSprayDistributions(db, awayBatterGameYear, awayBatter.PlayerId)
+			// awayBatterEvDist := fetcher.FetchEVDistributions(db, awayBatterGameYear, awayBatter.PlayerId)
+			// awayBatterLaDist := fetcher.FetchLADistributions(db, awayBatterGameYear, awayBatter.PlayerId)
+			// awayBatterSprayDist := fetcher.FetchSprayDistributions(db, awayBatterGameYear, awayBatter.PlayerId)
 
 			simData.PlayerInfo = append(simData.PlayerInfo, awayBatterInfo...)
 			simData.BatterSwing = append(simData.BatterSwing, awayBatterSwingProbs...)
 			simData.BatterContact = append(simData.BatterContact, awayBatterContactProbs...)
 			simData.BatterHitType = append(simData.BatterHitType, awayBatterHitProbs...)
-			simData.BatterEVDist = append(simData.BatterEVDist, awayBatterEvDist...)
-			simData.BatterLADist = append(simData.BatterLADist, awayBatterLaDist...)
-			simData.BatterSprayDist = append(simData.BatterSprayDist, awayBatterSprayDist...)
+			// simData.BatterEVDist = append(simData.BatterEVDist, awayBatterEvDist...)
+			// simData.BatterLADist = append(simData.BatterLADist, awayBatterLaDist...)
+			// simData.BatterSprayDist = append(simData.BatterSprayDist, awayBatterSprayDist...)
 		}
 	}
 
@@ -152,17 +156,17 @@ func SimulateGame(gameData []models.GameData) {
 			homeBatterSwingProbs, _ := fetcher.FetchBatterSwingPercentage(db, homeBatter.PlayerId, homeBatterGameYear)
 			homeBatterContactProbs, _ := fetcher.FetchBatterContactPercentage(db, homeBatter.PlayerId, homeBatterGameYear)
 			homeBatterHitProbs, _ := fetcher.FetchBatterHitType(db, homeBatter.PlayerId, homeBatterGameYear)
-			homeBatterEvDist := fetcher.FetchEVDistributions(db, homeBatterGameYear, homeBatter.PlayerId)
-			homeBatterLaDist := fetcher.FetchLADistributions(db, homeBatterGameYear, homeBatter.PlayerId)
-			homeBatterSprayDist := fetcher.FetchSprayDistributions(db, homeBatterGameYear, homeBatter.PlayerId)
+			// homeBatterEvDist := fetcher.FetchEVDistributions(db, homeBatterGameYear, homeBatter.PlayerId)
+			// homeBatterLaDist := fetcher.FetchLADistributions(db, homeBatterGameYear, homeBatter.PlayerId)
+			// homeBatterSprayDist := fetcher.FetchSprayDistributions(db, homeBatterGameYear, homeBatter.PlayerId)
 
 			simData.PlayerInfo = append(simData.PlayerInfo, homeBatterInfo...)
 			simData.BatterSwing = append(simData.BatterSwing, homeBatterSwingProbs...)
 			simData.BatterContact = append(simData.BatterContact, homeBatterContactProbs...)
 			simData.BatterHitType = append(simData.BatterHitType, homeBatterHitProbs...)
-			simData.BatterEVDist = append(simData.BatterEVDist, homeBatterEvDist...)
-			simData.BatterLADist = append(simData.BatterLADist, homeBatterLaDist...)
-			simData.BatterSprayDist = append(simData.BatterSprayDist, homeBatterSprayDist...)
+			// simData.BatterEVDist = append(simData.BatterEVDist, homeBatterEvDist...)
+			// simData.BatterLADist = append(simData.BatterLADist, homeBatterLaDist...)
+			// simData.BatterSprayDist = append(simData.BatterSprayDist, homeBatterSprayDist...)
 		}
 	}
 
@@ -322,9 +326,9 @@ func SimulateGame(gameData []models.GameData) {
 			fmt.Println("Batter #:", awayBatterNumber,
 				"| Pitcher :", homePitcher,
 				"| Event:", awayPaResult[0].EventType[len(awayPaResult[0].EventType)-1],
-				"| EV:", awayPaResult[0].ExitVelocity[len(awayPaResult[0].ExitVelocity)-1],
-				"| LA:", awayPaResult[0].LaunchAngle[len(awayPaResult[0].LaunchAngle)-1],
-				"| SA:", awayPaResult[0].SprayAngle[len(awayPaResult[0].SprayAngle)-1],
+				// "| EV:", awayPaResult[0].ExitVelocity[len(awayPaResult[0].ExitVelocity)-1],
+				// "| LA:", awayPaResult[0].LaunchAngle[len(awayPaResult[0].LaunchAngle)-1],
+				// "| SA:", awayPaResult[0].SprayAngle[len(awayPaResult[0].SprayAngle)-1],
 				"| Base State:", awayBaseState[0], awayBaseState[1], awayBaseState[2],
 				"| Score:", awayScore, "-", homeScore)
 
@@ -412,9 +416,9 @@ func SimulateGame(gameData []models.GameData) {
 			fmt.Println("Batter #:", homeBatterNumber,
 				"| Pitcher :", awayPitcher,
 				"| Event:", homePaResult[0].EventType[len(homePaResult[0].EventType)-1],
-				"| EV:", homePaResult[0].ExitVelocity[len(homePaResult[0].ExitVelocity)-1],
-				"| LA:", homePaResult[0].LaunchAngle[len(homePaResult[0].LaunchAngle)-1],
-				"| SA:", homePaResult[0].SprayAngle[len(homePaResult[0].SprayAngle)-1],
+				// "| EV:", homePaResult[0].ExitVelocity[len(homePaResult[0].ExitVelocity)-1],
+				// "| LA:", homePaResult[0].LaunchAngle[len(homePaResult[0].LaunchAngle)-1],
+				// "| SA:", homePaResult[0].SprayAngle[len(homePaResult[0].SprayAngle)-1],
 				"| Base State:", homeBaseState[0], homeBaseState[1], homeBaseState[2],
 				"| Score:", awayScore, "-", homeScore)
 

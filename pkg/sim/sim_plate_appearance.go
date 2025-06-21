@@ -208,83 +208,83 @@ func SimulatePlateAppearance(pa []models.PlateAppearanceData, sim []models.SimDa
 		// fmt.Println("Event Type Result:", event_type_result)
 		// fmt.println(strikes)
 
-		batterEvMap := make(map[int]models.EVDistribution)
-		batterEVStore := []models.EVDistribution{}
-		for _, player := range sim[0].BatterEVDist {
-			batterEvMap[int(player.Batter)] = player
-			batterEVStore = append(batterEVStore, player)
-		}
-		var evRows models.EVDistribution
-		for _, player := range batterEVStore {
-			if player.Batter == pa[0].BatterId &&
-				player.GameYear == pa[0].BatterGameYear &&
-				player.Stand == *batterStands &&
-				player.PThrows == *pitcherThrows &&
-				player.Outcome == utils.StrToNull(event_type_result) &&
-				player.PitchType == utils.StrToNull(pitch_type_result) &&
-				player.Zone == utils.IntToNull(zone_result) &&
-				player.VelocityBucket == utils.StrToNull(utils.GetVelocityBucket(location_velo_result[2])) {
-				evRows = player
-				break
-			}
-		}
+		// batterEvMap := make(map[int]models.EVDistribution)
+		// batterEVStore := []models.EVDistribution{}
+		// for _, player := range sim[0].BatterEVDist {
+		// 	batterEvMap[int(player.Batter)] = player
+		// 	batterEVStore = append(batterEVStore, player)
+		// }
+		// var evRows models.EVDistribution
+		// for _, player := range batterEVStore {
+		// 	if player.Batter == pa[0].BatterId &&
+		// 		player.GameYear == pa[0].BatterGameYear &&
+		// 		player.Stand == *batterStands &&
+		// 		player.PThrows == *pitcherThrows &&
+		// 		player.Outcome == utils.StrToNull(event_type_result) &&
+		// 		player.PitchType == utils.StrToNull(pitch_type_result) &&
+		// 		player.Zone == utils.IntToNull(zone_result) &&
+		// 		player.VelocityBucket == utils.StrToNull(utils.GetVelocityBucket(location_velo_result[2])) {
+		// 		evRows = player
+		// 		break
+		// 	}
+		// }
 
-		agg_ev := AggregateEVDistributions([]models.EVDistribution{evRows})
-		ev_result := SampleFromAggregatedDistribution(agg_ev)
+		// agg_ev := AggregateEVDistributions([]models.EVDistribution{evRows})
+		// ev_result := SampleFromAggregatedDistribution(agg_ev)
 
 		// fmt.Println("EV Result:", ev_result)
 
-		laDistMap := make(map[int]models.LADistribution)
-		laDistStore := []models.LADistribution{}
-		for _, player := range sim[0].BatterLADist {
-			laDistMap[int(player.Batter)] = player
-			laDistStore = append(laDistStore, player)
-		}
+		// laDistMap := make(map[int]models.LADistribution)
+		// laDistStore := []models.LADistribution{}
+		// for _, player := range sim[0].BatterLADist {
+		// 	laDistMap[int(player.Batter)] = player
+		// 	laDistStore = append(laDistStore, player)
+		// }
 
-		var laRows models.LADistribution
-		for _, player := range laDistStore {
-			if player.Batter == pa[0].BatterId &&
-				player.GameYear == pa[0].BatterGameYear &&
-				player.Stand == *batterStands &&
-				player.PThrows == *pitcherThrows &&
-				player.Outcome == &event_type_result &&
-				player.Zone == &zone_result {
+		// var laRows models.LADistribution
+		// for _, player := range laDistStore {
+		// 	if player.Batter == pa[0].BatterId &&
+		// 		player.GameYear == pa[0].BatterGameYear &&
+		// 		player.Stand == *batterStands &&
+		// 		player.PThrows == *pitcherThrows &&
+		// 		player.Outcome == &event_type_result &&
+		// 		player.Zone == &zone_result {
 
-				evBucket := utils.GetEVBucket(ev_result)
-				if player.EVBucket != nil && *player.EVBucket == evBucket {
-					laRows = player
-					break
-				}
-			}
-		}
+		// 		evBucket := utils.GetEVBucket(ev_result)
+		// 		if player.EVBucket != nil && *player.EVBucket == evBucket {
+		// 			laRows = player
+		// 			break
+		// 		}
+		// 	}
+		// }
 
-		agg_la := AggregateLADistributions([]models.LADistribution{laRows})
-		la_result := SampleFromAggregatedLADistribution(agg_la)
+		// agg_la := AggregateLADistributions([]models.LADistribution{laRows})
+		// la_result := SampleFromAggregatedLADistribution(agg_la)
 
-		sprayDistMap := make(map[int]models.SprayDistribution)
-		sprayDistStore := []models.SprayDistribution{}
-		for _, player := range sim[0].BatterSprayDist {
-			sprayDistMap[int(player.Batter)] = player
-			sprayDistStore = append(sprayDistStore, player)
-		}
+		// sprayDistMap := make(map[int]models.SprayDistribution)
+		// sprayDistStore := []models.SprayDistribution{}
+		// for _, player := range sim[0].BatterSprayDist {
+		// 	sprayDistMap[int(player.Batter)] = player
+		// 	sprayDistStore = append(sprayDistStore, player)
+		// }
 
-		var sprayRows models.SprayDistribution
-		for _, player := range sprayDistStore {
-			if player.Batter == pa[0].BatterId &&
-				player.GameYear == pa[0].BatterGameYear &&
-				player.Stand == *batterStands &&
-				player.PThrows == *pitcherThrows &&
-				player.Outcome == &event_type_result &&
-				player.Zone == &zone_result &&
-				player.EVBucket != nil && *player.EVBucket == utils.GetEVBucket(ev_result) &&
-				player.LaunchAngleBucket != nil && *player.LaunchAngleBucket == utils.GetLaunchAngleBucket(la_result) {
-				sprayRows = player
-				break
-			}
-		}
+		// var sprayRows models.SprayDistribution
+		// for _, player := range sprayDistStore {
+		// 	if player.Batter == pa[0].BatterId &&
+		// 		player.GameYear == pa[0].BatterGameYear &&
+		// 		player.Stand == *batterStands &&
+		// 		player.PThrows == *pitcherThrows &&
+		// 		player.Outcome == &event_type_result &&
+		// 		player.Zone == &zone_result &&
+		// 		player.EVBucket != nil && *player.EVBucket == utils.GetEVBucket(ev_result) &&
+		// 		player.LaunchAngleBucket != nil && *player.LaunchAngleBucket == utils.GetLaunchAngleBucket(la_result) {
+		// 		sprayRows = player
+		// 		break
+		// 	}
+		// }
 
-		agg_spray := AggregateSprayDistributions([]models.SprayDistribution{sprayRows})
-		spray_result := SampleFromAggregatedSprayDistribution(agg_spray)
+		// agg_spray := AggregateSprayDistributions([]models.SprayDistribution{sprayRows})
+		// spray_result := SampleFromAggregatedSprayDistribution(agg_spray)
 
 		pitcher_game_year_sequence = append(pitcher_game_year_sequence, pa[0].PitcherGameYear)
 		batter_game_year_sequence = append(batter_game_year_sequence, pa[0].BatterGameYear)
@@ -307,9 +307,9 @@ func SimulatePlateAppearance(pa []models.PlateAppearanceData, sim []models.SimDa
 		if !is_swing_result {
 			is_contact_sequence = append(is_contact_sequence, "")
 		}
-		exit_velocity_sequence = append(exit_velocity_sequence, ev_result)
-		launch_angle_sequence = append(launch_angle_sequence, la_result)
-		spray_angle_sequence = append(spray_angle_sequence, spray_result)
+		// exit_velocity_sequence = append(exit_velocity_sequence, ev_result)
+		// launch_angle_sequence = append(launch_angle_sequence, la_result)
+		// spray_angle_sequence = append(spray_angle_sequence, spray_result)
 		event_type_sequence = append(event_type_sequence, "")
 		away_score_sequence = append(away_score_sequence, pa[0].AwayScore)
 		home_score_sequence = append(home_score_sequence, pa[0].HomeScore)
@@ -321,9 +321,25 @@ func SimulatePlateAppearance(pa []models.PlateAppearanceData, sim []models.SimDa
 		on2b_sequence = append(on2b_sequence, pa[0].On2b)
 		on3b_sequence = append(on3b_sequence, pa[0].On3b)
 
-		// log.Printf("Pitch #%d | Type=%s | PlateX=%.2f PlateZ=%.2f | Zone=%d | Velo=%.1f | Strike=%t | Swing=%t",
-		// 	pitch_count, pitch_type_result, location_velo_result[0], location_velo_result[1], zone_result, location_velo_result[2],
-		// 	is_strike_result, is_swing_result)
+		// log.Printf(
+		// 	"Pitch #%d | Type=%s | PlateX=%.2f PlateZ=%.2f | Zone=%d | Velo=%.1f | Strike=%t | Swing=%t | Contact=%s | BatterID=%d | Stand=%s | Throws=%s | EV_Bucket=%s | Vel_Bucket=%s",
+		// 	pitch_count,
+		// 	pitch_type_result,
+		// 	location_velo_result[0],
+		// 	location_velo_result[1],
+		// 	zone_result,
+		// 	location_velo_result[2],
+		// 	is_strike_result,
+		// 	is_swing_result,
+		// 	is_contact_result,
+		// 	pa[0].BatterId,
+		// 	*batterStands,
+		// 	*pitcherThrows,
+		// 	// utils.GetEVBucket(location_velo_result[2]),       // if EV were used
+		// 	// utils.GetVelocityBucket(location_velo_result[2]), // for filtering dist
+		// )
+
+		// log.Printf("Pitch #%d", is_contact_result)
 
 		if is_swing_result {
 			// Batter swung

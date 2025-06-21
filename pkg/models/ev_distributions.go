@@ -11,9 +11,9 @@ type EVDistribution struct {
 	PitchType      sql.NullString
 	Zone           sql.NullInt32
 	VelocityBucket sql.NullString
-	Skew           float64
-	Mean           float64
-	Std            float64
-	N              int
+	Skew           sql.NullFloat64
+	Mean           sql.NullFloat64
+	Std            sql.NullFloat64
+	N              sql.NullInt32
 	Level          string
 }
