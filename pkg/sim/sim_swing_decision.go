@@ -2,13 +2,12 @@ package sim
 
 import (
 	"github.com/logananthony/go-baseball/pkg/models"
-  "github.com/logananthony/go-baseball/pkg/utils"
-)     
-
+	"github.com/logananthony/go-baseball/pkg/utils"
+)
 
 func SimulateSwingDecision(player []models.BatterSwingPercentage, league []models.BatterSwingPercentageLeague, stand, pThrows, pitchType string, plateX, plateZ float64) bool {
-	
-  zoneNum := utils.GetPitchZone(plateX, plateZ)
+
+	zoneNum := utils.GetPitchZone(plateX, plateZ)
 
 	var playerSwing *float64 = nil
 	for _, each := range player {
@@ -33,4 +32,3 @@ func SimulateSwingDecision(player []models.BatterSwingPercentage, league []model
 
 	return false
 }
-
