@@ -28,6 +28,11 @@ func main() {
 	time.Sleep(time.Second * 2)
 
 	db := config.ConnectDB()
+
+	db.SetMaxOpenConns(15)
+	db.SetMaxIdleConns(10)
+	db.SetConnMaxLifetime(time.Minute * 5)
+
 	defer db.Close()
 
 	server := api.NewAPIServer(":8080", db)

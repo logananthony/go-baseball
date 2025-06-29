@@ -1,18 +1,17 @@
 package sim
 
 import (
+	"database/sql"
 	"fmt"
-	"log"
 
-	"github.com/logananthony/go-baseball/pkg/config"
 	"github.com/logananthony/go-baseball/pkg/models"
 	"github.com/logananthony/go-baseball/pkg/utils"
 )
 
-func SimulatePlateAppearance(pa []models.PlateAppearanceData, sim []models.SimData) []models.PlateAppearanceResult {
+func SimulatePlateAppearance(db *sql.DB, pa []models.PlateAppearanceData, sim []models.SimData) []models.PlateAppearanceResult {
 
-	db := config.ConnectDB()
-	defer db.Close()
+	// db := config.ConnectDB()
+	// defer db.Close()
 
 	playerInfoMap := make(map[int]models.MLBPlayerInfo)
 	for _, player := range sim[0].PlayerInfo {
@@ -190,30 +189,13 @@ func SimulatePlateAppearance(pa []models.PlateAppearanceData, sim []models.SimDa
 
 		// fmt.Println("Is Swing Result:", is_swing_result)
 
-		// is_contact_result := SimulateContactPercentage(contactPctStore,
-		// 	sim[0].LeagueContact,
-		// 	*batterStands,
-		// 	*pitcherThrows,
-		// 	pitch_type_result,
-		// 	location_velo_result[0],
-		// 	location_velo_result[1])
-
-		var is_contact_result string
-		if is_swing_result {
-			is_contact_result = SimulateContactPercentage(
-				contactPctStore,
-				sim[0].LeagueContact,
-				*batterStands,
-				*pitcherThrows,
-				pitch_type_result,
-				location_velo_result[0],
-				location_velo_result[1],
-			)
-		} else {
-			is_contact_result = ""
-		}
-
-		// fmt.Println("Is Contact Result:", is_contact_result)
+		is_contact_result := SimulateContactPercentage(contactPctStore,
+			sim[0].LeagueContact,
+			*batterStands,
+			*pitcherThrows,
+			pitch_type_result,
+			location_velo_result[0],
+			location_velo_result[1])
 
 		event_type_result := SimulateBatterHitType(hitProbsStore,
 			*batterStands,
@@ -339,26 +321,31 @@ func SimulatePlateAppearance(pa []models.PlateAppearanceData, sim []models.SimDa
 		on2b_sequence = append(on2b_sequence, pa[0].On2b)
 		on3b_sequence = append(on3b_sequence, pa[0].On3b)
 
-		log.Printf(
-			"Pitch #%d | Type=%s | PlateX=%.2f PlateZ=%.2f | Zone=%d | Velo=%.1f | Strike=%t | Swing=%t | Contact=%s | BatterID=%d | PitcherID=%d",
-			pitch_count,
-			pitch_type_result,
-			location_velo_result[0],
-			location_velo_result[1],
-			zone_result,             // int
-			location_velo_result[2], // float64
-			is_strike_result,        // bool
-			is_swing_result,         // bool
-			is_contact_result,       // string
-			pa[0].BatterId,          // int
-			pa[0].PitcherId,         // int
-		)
+		// log.Printf(
+		// 	"Pitch #%d | Type=%s | PlateX=%.2f PlateZ=%.2f | Zone=%d | Velo=%.1f | Strike=%s | Swing=%t | Contact=%t | BatterID=%d | PitcherID=%d | Stand=%s | Throws=%s | EV_Bucket=%s | Vel_Bucket=%s",
+		// 	pitch_count,
+		// 	pitch_type_result,
+		// 	location_velo_result[0],
+		// 	location_velo_result[1],
+		// 	zone_result,             // int
+		// 	location_velo_result[2], // float64
+		// 	is_strike_result,        // string
+		// 	is_swing_result,         // bool
+		// 	is_contact_result,       // bool
+		// 	pa[0].BatterId,          // int
+		// 	pa[0].PitcherId,         // int
+		// 	// safeString(batterStands),  // helper func below
+		// 	// safeString(pitcherThrows), // helper func below
+		// 	"TODO_EV_Bucket",  // placeholder if EV bucket not ready
+		// 	"TODO_Vel_Bucket", // same here
+		// )
 
 		// log.Printf("Pitch #%d", is_contact_result)
 
 		if is_swing_result {
 			// Batter swung
 			is_contact_sequence = append(is_contact_sequence, is_contact_result)
+			// log.Printf("Pitch #%d", is_contact_result)
 
 			// if is_swing_result {
 			// 	log.Printf("Swing Decision: ContactType=%s", is_contact_result)

@@ -10,7 +10,8 @@ import (
 func FetchBullpenOrder(db *sql.DB, teamAbbr string, season int) *models.BullpenOrder {
 
 	var teamAbbrMap = map[string]string{
-		"AZ": "ARI",
+		"AZ":  "ARI",
+		"ATH": "OAK",
 		// "SF": "SFG",
 		// "TB": "TBR",
 		// "KC": "KCR",

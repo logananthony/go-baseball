@@ -96,7 +96,7 @@ func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 			go func(i int) {
 				defer wg.Done()
 				defer func() { <-sem }()
-				sim.SimulateGame([]models.GameData{data})
+				sim.SimulateGame(s.db, []models.GameData{data})
 			}(i)
 		}
 

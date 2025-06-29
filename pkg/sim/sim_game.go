@@ -13,10 +13,16 @@ import (
 	"github.com/logananthony/go-baseball/pkg/utils"
 )
 
-func SimulateGame(gameData []models.GameData) {
+func SimulateGame(db *sql.DB, gameData []models.GameData) {
 
-	db := config.ConnectDB()
-	defer db.Close()
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("🔥 Panic recovered in SimulateGame: %v", r)
+		}
+	}()
+
+	// db := config.ConnectDB()
+	// defer db.Close()
 
 	gamePk, _ := fetcher.FetchGameDataByGamePk(db, gameData[0].GamePk)
 
@@ -27,12 +33,6 @@ func SimulateGame(gameData []models.GameData) {
 	homeTeam := first.HomeTeamAbbr
 	awayTeam := first.AwayTeamAbbr
 	season := first.Season
-	// season := 2024
-
-	// Add warning for 2025 season data
-	if season == 2025 {
-		fmt.Println("⚠️  Warning: Simulating 2025 season game. Data may be limited due to small sample sizes.")
-	}
 
 	simData := models.SimData{
 		PlayerInfo:          []models.MLBPlayerInfo{},
@@ -51,6 +51,7 @@ func SimulateGame(gameData []models.GameData) {
 
 	gameRes := models.GameResult{
 		GameId: uuid.New().String(),
+		GamePk: gameData[0].GamePk,
 		JobId:  gameData[0].JobId,
 	}
 
@@ -152,20 +153,6 @@ func SimulateGame(gameData []models.GameData) {
 			awayBatterSwingProbs, _ := fetcher.FetchBatterSwingPercentage(db, awayBatter.PlayerId, awayBatterGameYear)
 			awayBatterContactProbs, _ := fetcher.FetchBatterContactPercentage(db, awayBatter.PlayerId, awayBatterGameYear)
 			awayBatterHitProbs, _ := fetcher.FetchBatterHitType(db, awayBatter.PlayerId, awayBatterGameYear)
-
-			// Debug info for 2025 data
-			if awayBatterGameYear == 2025 {
-				if len(awayBatterSwingProbs) == 0 {
-					fmt.Printf("⚠️  No swing data for away batter %d in 2025\n", awayBatter.PlayerId)
-				}
-				if len(awayBatterContactProbs) == 0 {
-					fmt.Printf("⚠️  No contact data for away batter %d in 2025\n", awayBatter.PlayerId)
-				}
-				if len(awayBatterHitProbs) == 0 {
-					fmt.Printf("⚠️  No hit type data for away batter %d in 2025\n", awayBatter.PlayerId)
-				}
-			}
-
 			// awayBatterEvDist := fetcher.FetchEVDistributions(db, awayBatterGameYear, awayBatter.PlayerId)
 			// awayBatterLaDist := fetcher.FetchLADistributions(db, awayBatterGameYear, awayBatter.PlayerId)
 			// awayBatterSprayDist := fetcher.FetchSprayDistributions(db, awayBatterGameYear, awayBatter.PlayerId)
@@ -187,20 +174,6 @@ func SimulateGame(gameData []models.GameData) {
 			homeBatterSwingProbs, _ := fetcher.FetchBatterSwingPercentage(db, homeBatter.PlayerId, homeBatterGameYear)
 			homeBatterContactProbs, _ := fetcher.FetchBatterContactPercentage(db, homeBatter.PlayerId, homeBatterGameYear)
 			homeBatterHitProbs, _ := fetcher.FetchBatterHitType(db, homeBatter.PlayerId, homeBatterGameYear)
-
-			// Debug info for 2025 data
-			if homeBatterGameYear == 2025 {
-				if len(homeBatterSwingProbs) == 0 {
-					fmt.Printf("⚠️  No swing data for home batter %d in 2025\n", homeBatter.PlayerId)
-				}
-				if len(homeBatterContactProbs) == 0 {
-					fmt.Printf("⚠️  No contact data for home batter %d in 2025\n", homeBatter.PlayerId)
-				}
-				if len(homeBatterHitProbs) == 0 {
-					fmt.Printf("⚠️  No hit type data for home batter %d in 2025\n", homeBatter.PlayerId)
-				}
-			}
-
 			// homeBatterEvDist := fetcher.FetchEVDistributions(db, homeBatterGameYear, homeBatter.PlayerId)
 			// homeBatterLaDist := fetcher.FetchLADistributions(db, homeBatterGameYear, homeBatter.PlayerId)
 			// homeBatterSprayDist := fetcher.FetchSprayDistributions(db, homeBatterGameYear, homeBatter.PlayerId)
@@ -268,7 +241,7 @@ func SimulateGame(gameData []models.GameData) {
 			awayBatterNumber = awayBatterNumber % 9
 			awayBatter := awayLineup[awayBatterNumber]
 			awayBatterGameYear := awayBatter.Season
-			awayPaResult := SimulatePlateAppearance([]models.PlateAppearanceData{{
+			awayPaResult := SimulatePlateAppearance(db, []models.PlateAppearanceData{{
 				BatterGameYear:  awayBatterGameYear,
 				BatterId:        awayBatter.PlayerId,
 				PitcherGameYear: homePitcherGameYear,
@@ -362,7 +335,7 @@ func SimulateGame(gameData []models.GameData) {
 			homeBatterNumber = homeBatterNumber % 9
 			homeBatter := homeLineup[homeBatterNumber]
 			homeBatterGameYear := homeBatter.Season
-			homePaResult := SimulatePlateAppearance([]models.PlateAppearanceData{{
+			homePaResult := SimulatePlateAppearance(db, []models.PlateAppearanceData{{
 				BatterGameYear:  homeBatterGameYear,
 				BatterId:        homeBatter.PlayerId,
 				PitcherGameYear: awayPitcherGameYear,
@@ -454,14 +427,6 @@ func SimulateGame(gameData []models.GameData) {
 			break
 		}
 
-		// Safety check: prevent runaway scoring
-		if awayScore > 50 || homeScore > 50 {
-			fmt.Println("⚠️  Warning: Excessive scoring detected. Ending game early.")
-			fmt.Println("Final Score:", awayScore, "-", homeScore)
-			postGameResults([]models.GameResult{gameRes}, season, db)
-			break
-		}
-
 		inning++
 	}
 
@@ -535,75 +500,76 @@ func ProcessPlateAppearance(paResult []models.PlateAppearanceResult, score int, 
 		return score, baseState, outs
 	}
 
-	// Ensure baseState has the correct size
-	if len(baseState) < 4 {
-		baseState = make([]bool, 4)
-	}
-
 	lastEventIndex := len(paResult[0].EventType) - 1
 	lastEventType := paResult[0].EventType[lastEventIndex]
 
 	switch lastEventType {
 	case "walk":
-		// If bases are loaded, batter scores
 		if baseState[0] && baseState[1] && baseState[2] {
-			score++
-			// Runners advance: 3rd to home (scores), 2nd to 3rd, 1st to 2nd, batter to 1st
-			baseState[2] = true // 2nd base runner moves to 3rd
-			baseState[1] = true // 1st base runner moves to 2nd
-			baseState[0] = true // Batter goes to 1st
+			baseState[3] = true
+			baseState[2] = true
+			baseState[1] = true
+			baseState[0] = true
 		} else {
-			// Find the first empty base and place batter there
-			if !baseState[0] {
-				baseState[0] = true
-			} else if !baseState[1] {
-				baseState[1] = true
-			} else if !baseState[2] {
+			if baseState[1] && baseState[2] {
 				baseState[2] = true
+				baseState[1] = true
+				baseState[0] = true
+			} else if baseState[0] && baseState[2] {
+				baseState[1] = baseState[0]
+				baseState[0] = true
+			} else if baseState[0] && baseState[1] {
+				baseState[1] = baseState[0]
+				baseState[2] = baseState[1]
+				baseState[0] = true
+			} else if baseState[2] {
+				baseState[0] = true
+			} else if baseState[1] {
+				baseState[0] = true
+			} else if baseState[0] {
+				baseState[1] = baseState[0]
+				baseState[0] = true
 			} else {
-				// All bases occupied but not loaded (shouldn't happen with proper logic)
 				baseState[0] = true
 			}
 		}
 
 	case "single", "double", "triple":
-		// Calculate how many bases the batter advances
-		var basesMoved int
-		if lastEventType == "single" {
-			basesMoved = 1
-		} else if lastEventType == "double" {
-			basesMoved = 2
-		} else {
-			basesMoved = 3
-		}
 
-		// Create new base state
-		newBaseState := []bool{false, false, false, false}
+		priorBaseState := baseState
+		newBaseState := [4]bool{false, false, false, false}
 
-		// Advance existing runners
-		for i := 0; i < 3; i++ {
-			if baseState[i] {
-				newPosition := i + basesMoved
-				if newPosition >= 3 {
-					// Runner scores
-					score++
+		for i := range baseState {
+
+			if priorBaseState[i] {
+				var basesMoved int
+				if lastEventType == "single" {
+					basesMoved = 1
+				} else if lastEventType == "double" {
+					basesMoved = 2
 				} else {
-					// Runner advances
-					newBaseState[newPosition] = true
+					basesMoved = 3
 				}
+
+				if i+basesMoved < 3 {
+					newBaseState[i+basesMoved] = true
+				} else {
+					score++
+				}
+
+			} else {
+				if lastEventType == "single" {
+					newBaseState[0] = true
+				} else if lastEventType == "double" {
+					newBaseState[1] = true
+				} else {
+					newBaseState[2] = true
+				}
+				baseState = newBaseState[:]
+				break
 			}
+			baseState = newBaseState[:]
 		}
-
-		// Place batter on appropriate base
-		if basesMoved == 1 {
-			newBaseState[0] = true
-		} else if basesMoved == 2 {
-			newBaseState[1] = true
-		} else {
-			newBaseState[2] = true
-		}
-
-		baseState = newBaseState
 
 	case "home_run":
 		runs := 1
@@ -630,7 +596,7 @@ func postGameResults(gameRes []models.GameResult, season int, db *sql.DB) {
 	gameYear := season
 
 	for _, result := range gameRes {
-		err := poster.InsertGameResult(db, result.GameId, result.JobId, gameYear, result)
+		err := poster.InsertGameResult(db, result.GameId, result.GamePk, result.JobId, gameYear, result)
 		if err != nil {
 			fmt.Println("Error inserting game result:", err)
 		}

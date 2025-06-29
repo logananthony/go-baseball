@@ -104,7 +104,7 @@ func toNullableInt(slice []int, i int) int {
 	return slice[i]
 }
 
-func InsertGameResult(db *sql.DB, gameId string, jobId string, gameYear int, result models.GameResult) error {
+func InsertGameResult(db *sql.DB, gameId string, gamepk int, jobId string, gameYear int, result models.GameResult) error {
 	pa := result.PAResult
 
 	// Ensure all slices in PlateAppearanceResult are of the same length
@@ -123,7 +123,7 @@ func InsertGameResult(db *sql.DB, gameId string, jobId string, gameYear int, res
                 pitch_type, plate_x, plate_z, zone,
                 velocity, is_strike, is_swing, is_contact,
                 event_type, exit_velocity, launch_angle, spray_angle,
-                created_at, jobId
+                created_at, jobId, gamepk
             ) VALUES (
                 $1, $2, $3, $4, $5,
                 $6, $7, $8, $9,
@@ -135,7 +135,7 @@ func InsertGameResult(db *sql.DB, gameId string, jobId string, gameYear int, res
                 $23, $24, $25, $26,
                 $27, $28, $29, $30,
                 $31, $32, $33, $34,
-                $35, $36
+                $35, $36, $37
             )
         `,
 			gameId, gameYear,
@@ -149,12 +149,11 @@ func InsertGameResult(db *sql.DB, gameId string, jobId string, gameYear int, res
 			toNullableString(pa.PitchType, i), pa.PlateX[i], pa.PlateZ[i], pa.Zone[i],
 			pa.Velocity[i], pa.IsStrike[i], pa.IsSwing[i], toNullableString(pa.IsContact, i),
 			toNullableString(pa.EventType, i), sql.NullFloat64{}, sql.NullFloat64{}, sql.NullFloat64{},
-			time.Now(), jobId,
+			time.Now(), jobId, gamepk,
 		)
 
 		if err != nil {
-			fmt.Printf("🚨 INSERT FAILED for AtBatNumber %d, Pitch %d: %v\n", pa.AtBatNumber[i], i+1, err)
-			return err
+			return fmt.Errorf("insert failed for gamePk %d: %w", result.GamePk, err)
 		}
 
 		fmt.Printf("✅ Inserted pitch %d for AtBatNumber: %d\n", i+1, pa.AtBatNumber[i])
