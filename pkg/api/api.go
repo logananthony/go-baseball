@@ -3,6 +3,7 @@ package api
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -342,6 +343,80 @@ func (s *APIServer) GetJobStatusQueryParams(w http.ResponseWriter, req *http.Req
 	json.NewEncoder(w).Encode(jobs)
 }
 
+// GetAggCore handles GET /agg-core
+func (s *APIServer) GetAggCore(w http.ResponseWriter, req *http.Request) {
+	q := req.URL.Query()
+	gamePkStr := q.Get("gamePk")
+	limitStr := q.Get("limit")
+	gameDateStr := q.Get("gamedate") // e.g., "2025-06-28"
+
+	sqlParts := []string{"SELECT * FROM game_result_agg_core"}
+	args := []interface{}{}
+	where := []string{}
+	argID := 1
+
+	if gamePkStr != "" {
+		where = append(where, "gamepk = $"+strconv.Itoa(argID))
+		gp, err := strconv.Atoi(gamePkStr)
+		if err != nil {
+			http.Error(w, "invalid gamePk", http.StatusBadRequest)
+			return
+		}
+		args = append(args, gp)
+		argID++
+	}
+
+	if gameDateStr != "" {
+		where = append(where, "(gamedate AT TIME ZONE 'UTC' AT TIME ZONE 'America/Los_Angeles')::date = $"+strconv.Itoa(argID))
+		args = append(args, gameDateStr)
+		argID++
+	}
+
+	if len(where) > 0 {
+		sqlParts = append(sqlParts, "WHERE "+strings.Join(where, " AND "))
+	}
+
+	limit := 100
+	if limitStr != "" {
+		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 && l <= 1000 {
+			limit = l
+		}
+	}
+	sqlParts = append(sqlParts, fmt.Sprintf("ORDER BY gamepk DESC LIMIT %d", limit))
+	sqlStr := strings.Join(sqlParts, " ")
+
+	rows, err := s.db.Query(sqlStr, args...)
+	if err != nil {
+		log.Printf("agg-core query error: %v", err)
+		http.Error(w, "database error", http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	cols, _ := rows.Columns()
+	results := []map[string]interface{}{}
+
+	for rows.Next() {
+		data := make([]interface{}, len(cols))
+		ptrs := make([]interface{}, len(cols))
+		for i := range data {
+			ptrs[i] = &data[i]
+		}
+		if err := rows.Scan(ptrs...); err != nil {
+			log.Printf("scan error: %v", err)
+			continue
+		}
+		row := map[string]interface{}{}
+		for i, c := range cols {
+			row[c] = *(ptrs[i].(*interface{}))
+		}
+		results = append(results, row)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(results)
+}
+
 func (s *APIServer) Run() error {
 	router := mux.NewRouter()
 
@@ -353,6 +428,7 @@ func (s *APIServer) Run() error {
 	subrouter.HandleFunc("/status", s.PostJobStatus).Methods("POST", "OPTIONS")
 	subrouter.HandleFunc("/results", s.GetGameResults).Methods("GET", "OPTIONS")
 	subrouter.HandleFunc("/status", s.GetJobStatusQueryParams).Methods("GET", "OPTIONS")
+	subrouter.HandleFunc("/agg-core", s.GetAggCore).Methods("GET", "OPTIONS")
 
 	log.Printf("Starting API server on %s", s.addr)
 	return http.ListenAndServe(s.addr, router)
