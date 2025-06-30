@@ -14,8 +14,6 @@ func FetchPitchingSubstitutionProbs(db *sql.DB) ([]models.PitchingSubstitutionPr
 			inning,
 			runs_scored_game,
 			runs_scored_inning,
-			total_appearances,
-			total_pulled,
 			pull_probability
 		FROM pitching_substitution_probs
 	`
@@ -34,8 +32,6 @@ func FetchPitchingSubstitutionProbs(db *sql.DB) ([]models.PitchingSubstitutionPr
 			&record.Inning,
 			&record.RunsScoredGame,
 			&record.RunsScoredInning,
-			&record.TotalAppearances,
-			&record.TotalPulled,
 			&record.PullProbability,
 		); err != nil {
 			log.Println("Scan error:", err)
@@ -50,4 +46,3 @@ func FetchPitchingSubstitutionProbs(db *sql.DB) ([]models.PitchingSubstitutionPr
 
 	return results, nil
 }
-

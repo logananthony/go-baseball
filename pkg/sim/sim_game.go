@@ -271,6 +271,10 @@ func SimulateGame(db *sql.DB, gameData []models.GameData) {
 			} else {
 				pitcherPulledHome = false
 			}
+			fmt.Printf("✅ Cached %d pitcher substitution probabilities\n", len(pitchingSubProbs))
+			for _, p := range pitchingSubProbs[:min(3, len(pitchingSubProbs))] {
+				fmt.Printf("Example substitution rule: %+v\n", p)
+			}
 
 			usedPitchers := map[int]bool{}
 
@@ -300,6 +304,7 @@ func SimulateGame(db *sql.DB, gameData []models.GameData) {
 					fmt.Println("Home pitcher lineup is empty, skipping pitcher substitution.")
 				}
 			}
+			// ────────────────────────────────────────────────────────────────────────
 
 			fmt.Println("Batter #:", awayBatterNumber,
 				"| Pitcher :", homePitcher,

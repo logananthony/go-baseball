@@ -4,8 +4,6 @@ type PitchingSubstitutionProb struct {
 	Inning           int
 	RunsScoredGame   int
 	RunsScoredInning int
-	TotalAppearances int
-	TotalPulled      int
+	Role             int
 	PullProbability  float64
 }
-
