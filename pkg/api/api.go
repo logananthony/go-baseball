@@ -448,7 +448,7 @@ func (s *APIServer) GetAggCore(w http.ResponseWriter, req *http.Request) {
 	}
 
 	if gameDateStr != "" {
-		where = append(where, "(gamedate AT TIME ZONE 'UTC' AT TIME ZONE 'America/Los_Angeles')::date = $"+strconv.Itoa(argID))
+		where = append(where, "gamedate::date = $"+strconv.Itoa(argID)) // no timezone shifts
 		args = append(args, gameDateStr)
 		argID++
 	}
@@ -489,7 +489,14 @@ func (s *APIServer) GetAggCore(w http.ResponseWriter, req *http.Request) {
 		}
 		row := map[string]interface{}{}
 		for i, c := range cols {
-			row[c] = *(ptrs[i].(*interface{}))
+			val := *(ptrs[i].(*interface{}))
+			switch v := val.(type) {
+			case []byte:
+				row[c] = string(v) // decode byte slice to string
+			default:
+				row[c] = v
+			}
+
 		}
 		results = append(results, row)
 	}
