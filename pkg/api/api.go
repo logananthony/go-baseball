@@ -43,6 +43,87 @@ func NewAPIServer(addr string, db *sql.DB) *APIServer {
 	}
 }
 
+// queryPropsTable builds / runs a SELECT * FROM <tbl> with optional filters.
+// recognised query params:
+//   - any key in exactCols  (exact match)
+//   - gamedate (YYYY-MM-DD)  — evaluated in Pacific time, same as /agg-core
+//   - limit   (defaults 100, capped 1000)
+func (s *APIServer) queryPropsTable(
+	w http.ResponseWriter,
+	req *http.Request,
+	table string,
+	exactCols map[string]string, // url param -> column name
+) {
+	q := req.URL.Query()
+	where := []string{}
+	args := []interface{}{}
+	argID := 1
+
+	// exact-match filters (batterId, pitcherId, gamePk…)
+	for param, col := range exactCols {
+		if v := q.Get(param); v != "" {
+			where = append(where, fmt.Sprintf("%s = $%d", col, argID))
+			args = append(args, v)
+			argID++
+		}
+	}
+
+	// Pacific-date filter
+	if gd := q.Get("gamedate"); gd != "" {
+		// cast through UTC → PT exactly like /agg-core
+		where = append(where,
+			fmt.Sprintf("(gamedate AT TIME ZONE 'UTC' AT TIME ZONE 'America/Los_Angeles')::date = $%d", argID))
+		args = append(args, gd)
+		argID++
+	}
+
+	sqlParts := []string{fmt.Sprintf("SELECT * FROM %s", table)}
+	if len(where) > 0 {
+		sqlParts = append(sqlParts, "WHERE "+strings.Join(where, " AND "))
+	}
+
+	// limit
+	lim := 100
+	if lStr := q.Get("limit"); lStr != "" {
+		if l, err := strconv.Atoi(lStr); err == nil && l > 0 && l <= 1000 {
+			lim = l
+		}
+	}
+	sqlParts = append(sqlParts, fmt.Sprintf("ORDER BY gamedate DESC, gamepk DESC LIMIT %d", lim))
+	sqlStr := strings.Join(sqlParts, " ")
+
+	rows, err := s.db.Query(sqlStr, args...)
+	if err != nil {
+		log.Printf("%s query error: %v", table, err)
+		http.Error(w, "database error", http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	cols, _ := rows.Columns()
+	out := []map[string]interface{}{}
+
+	for rows.Next() {
+		data := make([]interface{}, len(cols))
+		ptrs := make([]interface{}, len(cols))
+		for i := range data {
+			ptrs[i] = &data[i]
+		}
+		if err := rows.Scan(ptrs...); err != nil {
+			log.Printf("scan error: %v", err)
+			continue
+		}
+		row := map[string]interface{}{}
+		for i, c := range cols {
+			row[c] = *(ptrs[i].(*interface{}))
+		}
+		out = append(out, row)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(out)
+}
+
 func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 	type SimRequest struct {
 		UserID string `json:"userId"`
@@ -417,6 +498,30 @@ func (s *APIServer) GetAggCore(w http.ResponseWriter, req *http.Request) {
 	json.NewEncoder(w).Encode(results)
 }
 
+// GET /batter-props
+func (s *APIServer) GetBatterProps(w http.ResponseWriter, req *http.Request) {
+	s.queryPropsTable(
+		w, req,
+		"batter_props",
+		map[string]string{
+			"batterId": "batterid",
+			"gamePk":   "gamepk",
+		},
+	)
+}
+
+// GET /pitcher-props
+func (s *APIServer) GetPitcherProps(w http.ResponseWriter, req *http.Request) {
+	s.queryPropsTable(
+		w, req,
+		"pitcher_props",
+		map[string]string{
+			"pitcherId": "pitcherid",
+			"gamePk":    "gamepk",
+		},
+	)
+}
+
 func (s *APIServer) Run() error {
 	router := mux.NewRouter()
 
@@ -429,6 +534,8 @@ func (s *APIServer) Run() error {
 	subrouter.HandleFunc("/results", s.GetGameResults).Methods("GET", "OPTIONS")
 	subrouter.HandleFunc("/status", s.GetJobStatusQueryParams).Methods("GET", "OPTIONS")
 	subrouter.HandleFunc("/agg-core", s.GetAggCore).Methods("GET", "OPTIONS")
+	subrouter.HandleFunc("/batter-props", s.GetBatterProps).Methods("GET", "OPTIONS")
+	subrouter.HandleFunc("/pitcher-props", s.GetPitcherProps).Methods("GET", "OPTIONS")
 
 	log.Printf("Starting API server on %s", s.addr)
 	return http.ListenAndServe(s.addr, router)
