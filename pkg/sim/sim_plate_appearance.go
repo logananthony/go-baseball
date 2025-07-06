@@ -203,7 +203,12 @@ func SimulatePlateAppearance(db *sql.DB, pa []models.PlateAppearanceData, sim []
 			pitch_type_result,
 			location_velo_result[0],
 			location_velo_result[1],
-			location_velo_result[2])
+			location_velo_result[2],
+			sim[0].HomeTeam,
+			sim[0].MLBParkFactors)
+
+		// fmt.Printf("🏟️ Simulating with HomeTeam: %s\n", sim[0].HomeTeam)
+		// fmt.Printf("🏗️  ParkFactors: %+v\n", sim[0].MLBParkFactors)
 
 		// fmt.Println("Event Type Result:", event_type_result)
 		// fmt.println(strikes)

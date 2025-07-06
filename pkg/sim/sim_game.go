@@ -6,7 +6,6 @@ import (
 	"log"
 
 	"github.com/google/uuid"
-	"github.com/logananthony/go-baseball/pkg/config"
 	"github.com/logananthony/go-baseball/pkg/fetcher"
 	"github.com/logananthony/go-baseball/pkg/models"
 	"github.com/logananthony/go-baseball/pkg/poster"
@@ -47,6 +46,8 @@ func SimulateGame(db *sql.DB, gameData []models.GameData) {
 		BatterEVDist:        []models.EVDistribution{},
 		BatterLADist:        []models.LADistribution{},
 		BatterSprayDist:     []models.SprayDistribution{},
+		MLBParkFactors:      []models.ParkFactors{},
+		HomeTeam:            homeTeam,
 	}
 
 	gameRes := models.GameResult{
@@ -139,10 +140,14 @@ func SimulateGame(db *sql.DB, gameData []models.GameData) {
 
 	fmt.Println("Caching league-level data...")
 
+	simData.HomeTeam = homeTeam
 	pitchingSubProbs, _ := fetcher.FetchPitchingSubstitutionProbs(db)
 	simData.LeagueSwing = append(simData.LeagueSwing, fetcher.FetchBatterSwingPercentageLeague()...)
 	simData.LeagueContact = append(simData.LeagueContact, fetcher.FetchBatterContactPercentageLeague()...)
 	simData.LeaguePitchCovMeans = append(simData.LeaguePitchCovMeans, fetcher.FetchPitcherCovarianceMeanLeague()...)
+	if pf, ok := fetcher.FetchParkFactors(db, homeTeam); ok {
+		simData.MLBParkFactors = append(simData.MLBParkFactors, pf)
+	}
 
 	fmt.Println("Finished caching base simulation data ✅")
 
@@ -235,6 +240,89 @@ func SimulateGame(db *sql.DB, gameData []models.GameData) {
 		priorAwayScore := awayScore
 		priorHomeScore := homeScore
 
+		inningRunsHome := awayScore - priorAwayScore
+		pullProbHome := utils.GetPullProbability(pitchingSubProbs, inning, awayScore, inningRunsHome)
+
+		var pitcherPulledHome bool
+
+		if pullProbHome != nil {
+			pitcherPulledHome = utils.IsSuccess(pullProbHome)
+		} else {
+			pitcherPulledHome = false
+		}
+		fmt.Printf("✅ Cached %d pitcher substitution probabilities\n", len(pitchingSubProbs))
+		for _, p := range pitchingSubProbs[:min(3, len(pitchingSubProbs))] {
+			fmt.Printf("Example substitution rule: %+v\n", p)
+		}
+
+		usedPitchersHome := map[int]bool{}
+
+		if pullProbHome != nil && pitcherPulledHome {
+			if len(homePitcherLineup) > 0 {
+				homePitcherLineup = utils.FilterSliceSlices(homePitcherLineup, homePitcher)
+				if len(homePitcherLineup) > 0 {
+					// homePitcherChosenIndex := rand.Intn(len(homePitcherLineup))
+					// homePitcher = homePitcherLineup[homePitcherChosenIndex][0]
+					// homePitcherGameYear = homePitcherLineup[homePitcherChosenIndex][1]
+					runDiff := awayScore - homeScore // for homePitcher (home is pitching)
+					runnersOn := utils.CountRunners(awayBaseState)
+
+					selected := utils.SelectBullpenPitcherLineup(db, homePitcherLineup, inning, runDiff, runnersOn, usedPitchersHome)
+					if selected != nil {
+						homePitcher = selected[0]
+						homePitcherGameYear = selected[1]
+						usedPitchersHome[homePitcher] = true
+					} else {
+						fmt.Println("No eligible pitchers left for inning", inning)
+					}
+
+				} else {
+					fmt.Println("Home pitcher lineup is empty after filtering, skipping pitcher substitution.")
+				}
+			} else {
+				fmt.Println("Home pitcher lineup is empty, skipping pitcher substitution.")
+			}
+		}
+
+		inningRunsAway := homeScore - priorHomeScore
+		pullProbAway := utils.GetPullProbability(pitchingSubProbs, inning, homeScore, inningRunsAway)
+
+		var pitcherPulledAway bool
+
+		if pullProbAway != nil {
+			pitcherPulledAway = utils.IsSuccess(pullProbAway)
+		} else {
+			pitcherPulledAway = false
+		}
+
+		usedPitchersAway := map[int]bool{}
+
+		if pullProbAway != nil && pitcherPulledAway {
+			if len(awayPitcherLineup) > 0 {
+				awayPitcherLineup = utils.FilterSliceSlices(awayPitcherLineup, awayPitcher)
+				if len(awayPitcherLineup) > 0 { // Ensure the lineup is not empty after filtering
+					// awayPitcherChosenIndex := rand.Intn(len(awayPitcherLineup))
+					// awayPitcher = awayPitcherLineup[awayPitcherChosenIndex][0]
+					// awayPitcherGameYear = awayPitcherLineup[awayPitcherChosenIndex][1]
+					runDiff := homeScore - awayScore // for awayPitcher (away is pitching)
+					runnersOn := utils.CountRunners(homeBaseState)
+
+					selected := utils.SelectBullpenPitcherLineup(db, awayPitcherLineup, inning, runDiff, runnersOn, usedPitchersAway)
+					if selected != nil {
+						awayPitcher = selected[0]
+						awayPitcherGameYear = selected[1]
+						usedPitchersAway[awayPitcher] = true
+					} else {
+						fmt.Println("No eligible pitchers left for inning", inning)
+					}
+				} else {
+					fmt.Println("Away pitcher lineup is empty after filtering, skipping pitcher substitution.")
+				}
+			} else {
+				fmt.Println("Away pitcher lineup is empty, skipping pitcher substitution.")
+			}
+		}
+
 		fmt.Println("Top Inning:", inning)
 
 		for topOuts < 3 {
@@ -261,49 +349,6 @@ func SimulateGame(db *sql.DB, gameData []models.GameData) {
 
 			atBatNumber++
 
-			inningRunsHome := awayScore - priorAwayScore
-			pullProbHome := utils.GetPullProbability(pitchingSubProbs, inning, awayScore, inningRunsHome)
-
-			var pitcherPulledHome bool
-
-			if pullProbHome != nil {
-				pitcherPulledHome = utils.IsSuccess(pullProbHome)
-			} else {
-				pitcherPulledHome = false
-			}
-			fmt.Printf("✅ Cached %d pitcher substitution probabilities\n", len(pitchingSubProbs))
-			for _, p := range pitchingSubProbs[:min(3, len(pitchingSubProbs))] {
-				fmt.Printf("Example substitution rule: %+v\n", p)
-			}
-
-			usedPitchers := map[int]bool{}
-
-			if pullProbHome != nil && pitcherPulledHome {
-				if len(homePitcherLineup) > 0 {
-					homePitcherLineup = utils.FilterSliceSlices(homePitcherLineup, homePitcher)
-					if len(homePitcherLineup) > 0 {
-						// homePitcherChosenIndex := rand.Intn(len(homePitcherLineup))
-						// homePitcher = homePitcherLineup[homePitcherChosenIndex][0]
-						// homePitcherGameYear = homePitcherLineup[homePitcherChosenIndex][1]
-						runDiff := awayScore - homeScore // for homePitcher (home is pitching)
-						runnersOn := utils.CountRunners(awayBaseState)
-
-						selected := utils.SelectBullpenPitcherLineup(db, homePitcherLineup, inning, runDiff, runnersOn, usedPitchers)
-						if selected != nil {
-							homePitcher = selected[0]
-							homePitcherGameYear = selected[1]
-							usedPitchers[homePitcher] = true
-						} else {
-							fmt.Println("No eligible pitchers left for inning", inning)
-						}
-
-					} else {
-						fmt.Println("Home pitcher lineup is empty after filtering, skipping pitcher substitution.")
-					}
-				} else {
-					fmt.Println("Home pitcher lineup is empty, skipping pitcher substitution.")
-				}
-			}
 			// ────────────────────────────────────────────────────────────────────────
 
 			fmt.Println("Batter #:", awayBatterNumber,
@@ -359,45 +404,6 @@ func SimulateGame(db *sql.DB, gameData []models.GameData) {
 			}}, []models.SimData{simData})
 
 			atBatNumber++
-
-			inningRunsAway := homeScore - priorHomeScore
-			pullProbAway := utils.GetPullProbability(pitchingSubProbs, inning, homeScore, inningRunsAway)
-
-			var pitcherPulledAway bool
-
-			if pullProbAway != nil {
-				pitcherPulledAway = utils.IsSuccess(pullProbAway)
-			} else {
-				pitcherPulledAway = false
-			}
-
-			usedPitchers := map[int]bool{}
-
-			if pullProbAway != nil && pitcherPulledAway {
-				if len(awayPitcherLineup) > 0 {
-					awayPitcherLineup = utils.FilterSliceSlices(awayPitcherLineup, awayPitcher)
-					if len(awayPitcherLineup) > 0 { // Ensure the lineup is not empty after filtering
-						// awayPitcherChosenIndex := rand.Intn(len(awayPitcherLineup))
-						// awayPitcher = awayPitcherLineup[awayPitcherChosenIndex][0]
-						// awayPitcherGameYear = awayPitcherLineup[awayPitcherChosenIndex][1]
-						runDiff := homeScore - awayScore // for awayPitcher (away is pitching)
-						runnersOn := utils.CountRunners(homeBaseState)
-
-						selected := utils.SelectBullpenPitcherLineup(db, awayPitcherLineup, inning, runDiff, runnersOn, usedPitchers)
-						if selected != nil {
-							awayPitcher = selected[0]
-							awayPitcherGameYear = selected[1]
-							usedPitchers[awayPitcher] = true
-						} else {
-							fmt.Println("No eligible pitchers left for inning", inning)
-						}
-					} else {
-						fmt.Println("Away pitcher lineup is empty after filtering, skipping pitcher substitution.")
-					}
-				} else {
-					fmt.Println("Away pitcher lineup is empty, skipping pitcher substitution.")
-				}
-			}
 
 			fmt.Println("Batter #:", homeBatterNumber,
 				"| Pitcher :", awayPitcher,
@@ -496,103 +502,214 @@ func AppendGameResult(gameRes *models.GameResult, paResult models.PlateAppearanc
 	gameRes.PAResult.On3b = append(gameRes.PAResult.On3b, paResult.On3b...)
 }
 
-func ProcessPlateAppearance(paResult []models.PlateAppearanceResult, score int, baseState []bool, outs int) (int, []bool, int) {
+// func ProcessPlateAppearance(paResult []models.PlateAppearanceResult, score int, baseState []bool, outs int) (int, []bool, int) {
 
-	db := config.ConnectDB()
-	defer db.Close()
+// 	db := config.ConnectDB()
+// 	defer db.Close()
+
+// 	if len(paResult) == 0 || len(paResult[0].EventType) == 0 {
+// 		return score, baseState, outs
+// 	}
+
+// 	lastEventIndex := len(paResult[0].EventType) - 1
+// 	lastEventType := paResult[0].EventType[lastEventIndex]
+
+// 	switch lastEventType {
+// 	case "walk":
+// 		if baseState[0] && baseState[1] && baseState[2] {
+// 			baseState[3] = true
+// 			baseState[2] = true
+// 			baseState[1] = true
+// 			baseState[0] = true
+// 		} else {
+// 			if baseState[1] && baseState[2] {
+// 				baseState[2] = true
+// 				baseState[1] = true
+// 				baseState[0] = true
+// 			} else if baseState[0] && baseState[2] {
+// 				baseState[1] = baseState[0]
+// 				baseState[0] = true
+// 			} else if baseState[0] && baseState[1] {
+// 				baseState[1] = baseState[0]
+// 				baseState[2] = baseState[1]
+// 				baseState[0] = true
+// 			} else if baseState[2] {
+// 				baseState[0] = true
+// 			} else if baseState[1] {
+// 				baseState[0] = true
+// 			} else if baseState[0] {
+// 				baseState[1] = baseState[0]
+// 				baseState[0] = true
+// 			} else {
+// 				baseState[0] = true
+// 			}
+// 		}
+
+// 	case "single", "double", "triple":
+
+// 		priorBaseState := baseState
+// 		newBaseState := [4]bool{false, false, false, false}
+
+// 		for i := range baseState {
+
+// 			if priorBaseState[i] {
+// 				var basesMoved int
+// 				if lastEventType == "single" {
+// 					basesMoved = 1
+// 				} else if lastEventType == "double" {
+// 					basesMoved = 2
+// 				} else {
+// 					basesMoved = 3
+// 				}
+
+// 				if i+basesMoved < 3 {
+// 					newBaseState[i+basesMoved] = true
+// 				} else {
+// 					score++
+// 				}
+
+// 			} else {
+// 				if lastEventType == "single" {
+// 					newBaseState[0] = true
+// 				} else if lastEventType == "double" {
+// 					newBaseState[1] = true
+// 				} else {
+// 					newBaseState[2] = true
+// 				}
+// 				baseState = newBaseState[:]
+// 				break
+// 			}
+// 			baseState = newBaseState[:]
+// 		}
+
+// 	case "home_run":
+// 		runs := 1
+// 		for i := 0; i <= 2; i++ {
+// 			if baseState[i] {
+// 				runs++
+// 				baseState[i] = false
+// 			}
+// 		}
+// 		score += runs
+// 	case "out", "strikeout":
+// 		outs++
+// 	}
+
+// 	if baseState[3] {
+// 		score++
+// 		baseState[3] = false
+// 	}
+
+// 	return score, baseState, outs
+// }
+
+func advance(oldBases []bool, basesMoved int, event string) (int, []bool) {
+	newBases := make([]bool, 3)
+	runs := 0
+
+	// 1) Advance existing runners (right-to-left to avoid overwrite)
+	for i := 2; i >= 0; i-- {
+		if !oldBases[i] {
+			continue
+		}
+
+		// --- hard-coded sequencing boosts ---------------------------
+		if event == "single" && i == 1 && basesMoved == 1 {
+			// R2 scores on single
+			runs++
+			continue
+		}
+		if event == "double" && i == 0 && basesMoved == 2 {
+			// R1 scores on double
+			runs++
+			continue
+		}
+		// ------------------------------------------------------------
+
+		dest := i + basesMoved
+		if dest >= 3 {
+			runs++
+		} else {
+			newBases[dest] = true
+		}
+	}
+
+	// 2) Place the batter
+	if basesMoved >= 3 {
+		runs++ // triple or HR
+	} else {
+		newBases[basesMoved] = true
+	}
+
+	return runs, newBases
+}
+
+func ProcessPlateAppearance(
+	paResult []models.PlateAppearanceResult,
+	score int,
+	baseState []bool, // must be len==3 now
+	outs int,
+) (int, []bool, int) {
 
 	if len(paResult) == 0 || len(paResult[0].EventType) == 0 {
 		return score, baseState, outs
 	}
+	lastEvent := paResult[0].EventType[len(paResult[0].EventType)-1]
 
-	lastEventIndex := len(paResult[0].EventType) - 1
-	lastEventType := paResult[0].EventType[lastEventIndex]
+	var runs int
 
-	switch lastEventType {
+	switch lastEvent {
+
 	case "walk":
-		if baseState[0] && baseState[1] && baseState[2] {
-			baseState[3] = true
-			baseState[2] = true
-			baseState[1] = true
-			baseState[0] = true
-		} else {
-			if baseState[1] && baseState[2] {
-				baseState[2] = true
-				baseState[1] = true
-				baseState[0] = true
-			} else if baseState[0] && baseState[2] {
-				baseState[1] = baseState[0]
-				baseState[0] = true
-			} else if baseState[0] && baseState[1] {
-				baseState[1] = baseState[0]
-				baseState[2] = baseState[1]
-				baseState[0] = true
-			} else if baseState[2] {
-				baseState[0] = true
-			} else if baseState[1] {
-				baseState[0] = true
-			} else if baseState[0] {
-				baseState[1] = baseState[0]
-				baseState[0] = true
-			} else {
-				baseState[0] = true
-			}
-		}
+		// push everyone one base, score forced runner
+		runs, newBases := advance(baseState, 1, "walk")
+		score += runs
+		newBases[0] = true // batter to 1B
+		baseState = newBases
 
-	case "single", "double", "triple":
+	case "single":
+		runs, baseState = advance(baseState, 1, "single")
+		score += runs
 
-		priorBaseState := baseState
-		newBaseState := [4]bool{false, false, false, false}
+	case "double":
+		runs, baseState = advance(baseState, 2, "double")
+		score += runs
 
-		for i := range baseState {
-
-			if priorBaseState[i] {
-				var basesMoved int
-				if lastEventType == "single" {
-					basesMoved = 1
-				} else if lastEventType == "double" {
-					basesMoved = 2
-				} else {
-					basesMoved = 3
-				}
-
-				if i+basesMoved < 3 {
-					newBaseState[i+basesMoved] = true
-				} else {
-					score++
-				}
-
-			} else {
-				if lastEventType == "single" {
-					newBaseState[0] = true
-				} else if lastEventType == "double" {
-					newBaseState[1] = true
-				} else {
-					newBaseState[2] = true
-				}
-				baseState = newBaseState[:]
-				break
-			}
-			baseState = newBaseState[:]
-		}
+	case "triple":
+		runs, baseState = advance(baseState, 3, "triple")
+		score += runs
+		// batter already placed on 3B by advance()
 
 	case "home_run":
-		runs := 1
-		for i := 0; i <= 2; i++ {
-			if baseState[i] {
-				runs++
-				baseState[i] = false
+		for _, occ := range baseState {
+			if occ {
+				score++
 			}
 		}
-		score += runs
+		score++ // batter
+		baseState = []bool{false, false, false}
+
 	case "out", "strikeout":
 		outs++
 	}
 
-	if baseState[3] {
-		score++
-		baseState[3] = false
-	}
+	// -----------------------------------------------------------------
+	// (Optional) extra-base adjustments – uncomment & tune percentages
+	/*
+		if lastEvent == "single" {
+			// runner on 2B scores on single 70 %
+			if baseState[1] && rand.Float64() < 0.70 {
+				baseState[1] = false
+				score++
+			}
+			// runner on 1B advances to 3B 35 %
+			if baseState[0] && rand.Float64() < 0.35 {
+				baseState[0] = false
+				baseState[2] = true
+			}
+		}
+	*/
+	// -----------------------------------------------------------------
 
 	return score, baseState, outs
 }

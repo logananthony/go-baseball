@@ -13,4 +13,6 @@ type SimData struct {
 	BatterEVDist        []EVDistribution
 	BatterLADist        []LADistribution
 	BatterSprayDist     []SprayDistribution
+	MLBParkFactors      []ParkFactors
+	HomeTeam            string
 }

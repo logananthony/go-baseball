@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -143,7 +144,7 @@ func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 	}
 
 	if body.NSims > 2430 {
-		http.Error(w, "Too many simulations requested (max 1000)", http.StatusBadRequest)
+		http.Error(w, "Too many simulations requested (max 2430)", http.StatusBadRequest)
 		return
 	}
 
@@ -154,6 +155,7 @@ func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 		JobId:  jobID,
 	}
 
+	// Create job entry in DB
 	_, err := s.db.Exec(`
 		INSERT INTO simulation_jobs (id, user_id, status)
 		VALUES ($1, $2, 'pending')`, jobID, body.UserID)
@@ -163,23 +165,30 @@ func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	// Start simulation in background
 	go func(jid, uid string, data models.GameData, n int) {
 		_, err := s.db.Exec(`UPDATE simulation_jobs SET status = 'running', updated_at = NOW() WHERE id = $1`, jid)
 		if err != nil {
 			log.Printf("Failed to update job %s to running: %v", jid, err)
 		}
 
-		sem := make(chan struct{}, 10)
-		var wg sync.WaitGroup
+		numWorkers := runtime.NumCPU()
+		simsPerWorker := n / numWorkers
+		extra := n % numWorkers
 
-		for i := 0; i < n; i++ {
-			sem <- struct{}{}
+		var wg sync.WaitGroup
+		for w := 0; w < numWorkers; w++ {
+			runs := simsPerWorker
+			if w < extra {
+				runs++
+			}
 			wg.Add(1)
-			go func(i int) {
+			go func(r int) {
 				defer wg.Done()
-				defer func() { <-sem }()
-				sim.SimulateGame(s.db, []models.GameData{data})
-			}(i)
+				for i := 0; i < r; i++ {
+					sim.SimulateGame(s.db, []models.GameData{data})
+				}
+			}(runs)
 		}
 
 		wg.Wait()
@@ -193,6 +202,7 @@ func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 		}
 	}(jobID, body.UserID, gameData, body.NSims)
 
+	// Respond immediately with job ID
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{
 		"jobId": jobID,
