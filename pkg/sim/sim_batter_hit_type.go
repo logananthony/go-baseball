@@ -7,8 +7,6 @@ import (
 	"github.com/logananthony/go-baseball/pkg/utils"
 )
 
-// // SimulateBatterHitType selects the best matching batted ball outcome for a batter
-// // using a specificity scoring system across Stand, PThrows, PitchType, Zone, and VelocityBucket.
 // func SimulateBatterHitType(in []models.BatterHitType, stand, pThrows, pitchType string, plateX, plateZ, velocity float64, teamAbbr string, pf []models.ParkFactors) string {
 // 	zone_num := utils.GetPitchZone(plateX, plateZ)
 // 	velo_bucket := utils.GetVelocityBucket(velocity)

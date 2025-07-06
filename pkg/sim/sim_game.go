@@ -502,6 +502,17 @@ func AppendGameResult(gameRes *models.GameResult, paResult models.PlateAppearanc
 	gameRes.PAResult.On3b = append(gameRes.PAResult.On3b, paResult.On3b...)
 }
 
+func postGameResults(gameRes []models.GameResult, season int, db *sql.DB) {
+	gameYear := season
+
+	for _, result := range gameRes {
+		err := poster.InsertGameResult(db, result.GameId, result.GamePk, result.JobId, gameYear, result)
+		if err != nil {
+			fmt.Println("Error inserting game result:", err)
+		}
+	}
+}
+
 // func ProcessPlateAppearance(paResult []models.PlateAppearanceResult, score int, baseState []bool, outs int) (int, []bool, int) {
 
 // 	db := config.ConnectDB()
@@ -603,6 +614,8 @@ func AppendGameResult(gameRes *models.GameResult, paResult models.PlateAppearanc
 // 	return score, baseState, outs
 // }
 
+// advance moves existing runners then places the batter.
+// oldBases: [1B, 2B, 3B] occupancy
 func advance(oldBases []bool, basesMoved int, event string) (int, []bool) {
 	newBases := make([]bool, 3)
 	runs := 0
@@ -613,32 +626,42 @@ func advance(oldBases []bool, basesMoved int, event string) (int, []bool) {
 			continue
 		}
 
-		// --- hard-coded sequencing boosts ---------------------------
-		if event == "single" && i == 1 && basesMoved == 1 {
-			// R2 scores on single
+		// sequencing boosts (optional house rules)
+		if event == "single" && i == 1 && basesMoved == 1 { // runner on 2B scores on single
 			runs++
 			continue
 		}
-		if event == "double" && i == 0 && basesMoved == 2 {
-			// R1 scores on double
+		if event == "double" && i == 0 && basesMoved == 2 { // runner on 1B scores on double
 			runs++
 			continue
 		}
-		// ------------------------------------------------------------
 
 		dest := i + basesMoved
 		if dest >= 3 {
-			runs++
+			runs++ // runner scores
 		} else {
 			newBases[dest] = true
 		}
 	}
 
 	// 2) Place the batter
-	if basesMoved >= 3 {
-		runs++ // triple or HR
+	if event == "home_run" {
+		runs++ // batter scores; bases cleared in caller
 	} else {
-		newBases[basesMoved] = true
+		placement := basesMoved - 1 // 0 for walk/single, 1 for double, 2 for triple
+		if placement < 0 {
+			placement = 0
+		}
+
+		// force-advance if base occupied (walk with traffic, etc.)
+		for placement < 3 && newBases[placement] {
+			placement++
+		}
+		if placement >= 3 {
+			runs++ // forced across home (e.g., walk with bases loaded)
+		} else {
+			newBases[placement] = true
+		}
 	}
 
 	return runs, newBases
@@ -662,10 +685,8 @@ func ProcessPlateAppearance(
 
 	case "walk":
 		// push everyone one base, score forced runner
-		runs, newBases := advance(baseState, 1, "walk")
+		runs, baseState = advance(baseState, 1, "walk")
 		score += runs
-		newBases[0] = true // batter to 1B
-		baseState = newBases
 
 	case "single":
 		runs, baseState = advance(baseState, 1, "single")
@@ -712,15 +733,4 @@ func ProcessPlateAppearance(
 	// -----------------------------------------------------------------
 
 	return score, baseState, outs
-}
-
-func postGameResults(gameRes []models.GameResult, season int, db *sql.DB) {
-	gameYear := season
-
-	for _, result := range gameRes {
-		err := poster.InsertGameResult(db, result.GameId, result.GamePk, result.JobId, gameYear, result)
-		if err != nil {
-			fmt.Println("Error inserting game result:", err)
-		}
-	}
 }
