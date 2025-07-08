@@ -273,14 +273,14 @@ func SimulateGame(db *sql.DB, gameData []models.GameData) {
 						homePitcherGameYear = selected[1]
 						usedPitchersHome[homePitcher] = true
 					} else {
-						fmt.Println("No eligible pitchers left for inning", inning)
+						// fmt.Println("No eligible pitchers left for inning", inning)
 					}
 
 				} else {
-					fmt.Println("Home pitcher lineup is empty after filtering, skipping pitcher substitution.")
+					// fmt.Println("Home pitcher lineup is empty after filtering, skipping pitcher substitution.")
 				}
 			} else {
-				fmt.Println("Home pitcher lineup is empty, skipping pitcher substitution.")
+				// fmt.Println("Home pitcher lineup is empty, skipping pitcher substitution.")
 			}
 		}
 
@@ -313,13 +313,13 @@ func SimulateGame(db *sql.DB, gameData []models.GameData) {
 						awayPitcherGameYear = selected[1]
 						usedPitchersAway[awayPitcher] = true
 					} else {
-						fmt.Println("No eligible pitchers left for inning", inning)
+						// fmt.Println("No eligible pitchers left for inning", inning)
 					}
 				} else {
-					fmt.Println("Away pitcher lineup is empty after filtering, skipping pitcher substitution.")
+					// fmt.Println("Away pitcher lineup is empty after filtering, skipping pitcher substitution.")
 				}
 			} else {
-				fmt.Println("Away pitcher lineup is empty, skipping pitcher substitution.")
+				// fmt.Println("Away pitcher lineup is empty, skipping pitcher substitution.")
 			}
 		}
 
@@ -513,109 +513,6 @@ func postGameResults(gameRes []models.GameResult, season int, db *sql.DB) {
 	}
 }
 
-// func ProcessPlateAppearance(paResult []models.PlateAppearanceResult, score int, baseState []bool, outs int) (int, []bool, int) {
-
-// 	db := config.ConnectDB()
-// 	defer db.Close()
-
-// 	if len(paResult) == 0 || len(paResult[0].EventType) == 0 {
-// 		return score, baseState, outs
-// 	}
-
-// 	lastEventIndex := len(paResult[0].EventType) - 1
-// 	lastEventType := paResult[0].EventType[lastEventIndex]
-
-// 	switch lastEventType {
-// 	case "walk":
-// 		if baseState[0] && baseState[1] && baseState[2] {
-// 			baseState[3] = true
-// 			baseState[2] = true
-// 			baseState[1] = true
-// 			baseState[0] = true
-// 		} else {
-// 			if baseState[1] && baseState[2] {
-// 				baseState[2] = true
-// 				baseState[1] = true
-// 				baseState[0] = true
-// 			} else if baseState[0] && baseState[2] {
-// 				baseState[1] = baseState[0]
-// 				baseState[0] = true
-// 			} else if baseState[0] && baseState[1] {
-// 				baseState[1] = baseState[0]
-// 				baseState[2] = baseState[1]
-// 				baseState[0] = true
-// 			} else if baseState[2] {
-// 				baseState[0] = true
-// 			} else if baseState[1] {
-// 				baseState[0] = true
-// 			} else if baseState[0] {
-// 				baseState[1] = baseState[0]
-// 				baseState[0] = true
-// 			} else {
-// 				baseState[0] = true
-// 			}
-// 		}
-
-// 	case "single", "double", "triple":
-
-// 		priorBaseState := baseState
-// 		newBaseState := [4]bool{false, false, false, false}
-
-// 		for i := range baseState {
-
-// 			if priorBaseState[i] {
-// 				var basesMoved int
-// 				if lastEventType == "single" {
-// 					basesMoved = 1
-// 				} else if lastEventType == "double" {
-// 					basesMoved = 2
-// 				} else {
-// 					basesMoved = 3
-// 				}
-
-// 				if i+basesMoved < 3 {
-// 					newBaseState[i+basesMoved] = true
-// 				} else {
-// 					score++
-// 				}
-
-// 			} else {
-// 				if lastEventType == "single" {
-// 					newBaseState[0] = true
-// 				} else if lastEventType == "double" {
-// 					newBaseState[1] = true
-// 				} else {
-// 					newBaseState[2] = true
-// 				}
-// 				baseState = newBaseState[:]
-// 				break
-// 			}
-// 			baseState = newBaseState[:]
-// 		}
-
-// 	case "home_run":
-// 		runs := 1
-// 		for i := 0; i <= 2; i++ {
-// 			if baseState[i] {
-// 				runs++
-// 				baseState[i] = false
-// 			}
-// 		}
-// 		score += runs
-// 	case "out", "strikeout":
-// 		outs++
-// 	}
-
-// 	if baseState[3] {
-// 		score++
-// 		baseState[3] = false
-// 	}
-
-// 	return score, baseState, outs
-// }
-
-// advance moves existing runners then places the batter.
-// oldBases: [1B, 2B, 3B] occupancy
 func advance(oldBases []bool, basesMoved int, event string) (int, []bool) {
 	newBases := make([]bool, 3)
 	runs := 0
@@ -667,6 +564,40 @@ func advance(oldBases []bool, basesMoved int, event string) (int, []bool) {
 	return runs, newBases
 }
 
+// walkAdvance moves only the runners that are actually forced.
+// returns (runs_scored, new_base_state)
+func walkAdvance(old []bool) (int, []bool) {
+	newB := make([]bool, 3)
+	runs := 0
+
+	// 3️⃣ Runner on 3B
+	if old[0] && old[1] && old[2] {
+		// bases were loaded → he’s forced home
+		runs++
+	} else if old[2] {
+		newB[2] = true // stays put
+	}
+
+	// 2️⃣ Runner on 2B
+	if old[1] {
+		if old[0] { // 1B taken → forced
+			newB[2] = true // to 3B
+		} else {
+			newB[1] = true // stays
+		}
+	}
+
+	// 1️⃣ Runner on 1B
+	if old[0] {
+		newB[1] = true // always goes to 2B
+	}
+
+	// Batter to 1B
+	newB[0] = true
+
+	return runs, newB
+}
+
 func ProcessPlateAppearance(
 	paResult []models.PlateAppearanceResult,
 	score int,
@@ -684,9 +615,9 @@ func ProcessPlateAppearance(
 	switch lastEvent {
 
 	case "walk":
-		// push everyone one base, score forced runner
-		runs, baseState = advance(baseState, 1, "walk")
-		score += runs
+		var r int
+		r, baseState = walkAdvance(baseState)
+		score += r
 
 	case "single":
 		runs, baseState = advance(baseState, 1, "single")
