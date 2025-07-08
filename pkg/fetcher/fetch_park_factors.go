@@ -13,17 +13,17 @@ import (
 // The second return value is true if a row was found, false otherwise.
 func FetchParkFactors(db *sql.DB, teamAbbr string) (models.ParkFactors, bool) {
 	// ─── Alias map (tweak if needed) ───────────────────────────────────────
-	// abbrMap := map[string]string{
-	// 	"AZ":  "ARI",
-	// 	"ATH": "OAK",
-	// 	"KC":  "KCR",
-	// 	"SF":  "SFG",
-	// 	"TB":  "TBR",
-	// 	"WSH": "WSN",
-	// }
-	// if val, ok := abbrMap[teamAbbr]; ok {
-	// 	teamAbbr = val
-	// }
+	abbrMap := map[string]string{
+		"AZ":  "ARI",
+		"ATH": "OAK",
+		// 	"KC":  "KCR",
+		// 	"SF":  "SFG",
+		// 	"TB":  "TBR",
+		// 	"WSH": "WSN",
+	}
+	if val, ok := abbrMap[teamAbbr]; ok {
+		teamAbbr = val
+	}
 
 	const q = `
 SELECT
