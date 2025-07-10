@@ -26,18 +26,18 @@ func FetchParkFactors(db *sql.DB, teamAbbr string) (models.ParkFactors, bool) {
 	}
 
 	const q = `
-SELECT
-	"Team",
-	"Venue",
-	"H",
-	"1B",
-	"2B",
-	"3B",
-	"HR",
-	"OBP"
-FROM park_factors
-WHERE UPPER("Team") = UPPER($1)
-LIMIT 1;`
+		SELECT
+			"Team",
+			"Venue",
+			"H",
+			"1B",
+			"2B",
+			"3B",
+			"HR",
+			"OBP"
+		FROM park_factors
+		WHERE UPPER("Team") = UPPER($1)
+		LIMIT 1;`
 
 	row := db.QueryRow(q, teamAbbr)
 

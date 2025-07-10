@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -84,13 +83,7 @@ func (s *APIServer) queryPropsTable(
 	}
 
 	// limit
-	lim := 100
-	if lStr := q.Get("limit"); lStr != "" {
-		if l, err := strconv.Atoi(lStr); err == nil && l > 0 && l <= 1000 {
-			lim = l
-		}
-	}
-	sqlParts = append(sqlParts, fmt.Sprintf("ORDER BY gamedate DESC, gamepk DESC LIMIT %d", lim))
+	sqlParts = append(sqlParts, "ORDER BY gamedate DESC, gamepk DESC")
 	sqlStr := strings.Join(sqlParts, " ")
 
 	rows, err := s.db.Query(sqlStr, args...)
@@ -123,6 +116,28 @@ func (s *APIServer) queryPropsTable(
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(out)
+}
+
+func runSims(db *sql.DB, data models.GameData, n int) {
+	const maxConcurrentSims = 8 // Tune for your hardware!
+	sem := make(chan struct{}, maxConcurrentSims)
+	var wg sync.WaitGroup
+
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			sem <- struct{}{}        // Acquire slot
+			defer func() { <-sem }() // Release slot
+			defer func() {           // Recover from panics
+				if r := recover(); r != nil {
+					log.Printf("SimulateGame panic: %v", r)
+				}
+			}()
+			sim.SimulateGame(db, []models.GameData{data})
+		}()
+	}
+	wg.Wait()
 }
 
 func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
@@ -172,26 +187,27 @@ func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 			log.Printf("Failed to update job %s to running: %v", jid, err)
 		}
 
-		numWorkers := runtime.NumCPU()
-		simsPerWorker := n / numWorkers
-		extra := n % numWorkers
+		// numWorkers := runtime.NumCPU()
+		// simsPerWorker := n / numWorkers
+		// extra := n % numWorkers
 
-		var wg sync.WaitGroup
-		for w := 0; w < numWorkers; w++ {
-			runs := simsPerWorker
-			if w < extra {
-				runs++
-			}
-			wg.Add(1)
-			go func(r int) {
-				defer wg.Done()
-				for i := 0; i < r; i++ {
-					sim.SimulateGame(s.db, []models.GameData{data})
-				}
-			}(runs)
-		}
+		// var wg sync.WaitGroup
+		// for w := 0; w < numWorkers; w++ {
+		// 	runs := simsPerWorker
+		// 	if w < extra {
+		// 		runs++
+		// 	}
+		// 	wg.Add(1)
+		// 	go func(r int) {
+		// 		defer wg.Done()
+		// 		for i := 0; i < r; i++ {
+		// 			sim.SimulateGame(s.db, []models.GameData{data})
+		// 		}
+		// 	}(runs)
+		// }
 
-		wg.Wait()
+		// wg.Wait()
+		runSims(s.db, data, n)
 
 		_, err = s.db.Exec(`
 			UPDATE simulation_jobs 
