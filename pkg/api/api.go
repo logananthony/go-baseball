@@ -119,6 +119,11 @@ func (s *APIServer) queryPropsTable(
 }
 
 func runSims(db *sql.DB, data models.GameData, n int) {
+	simData, homeLineup, awayLineup, pitchingSubProbs, homeBullpen, awayBullpen, bullpenRoleProbs, err := sim.PrepareSimData(db, data)
+	if err != nil {
+		log.Printf("Failed to prepare simulation data: %v", err)
+		return
+	}
 	const maxConcurrentSims = 8 // Tune for your hardware!
 	sem := make(chan struct{}, maxConcurrentSims)
 	var wg sync.WaitGroup
@@ -127,14 +132,16 @@ func runSims(db *sql.DB, data models.GameData, n int) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			sem <- struct{}{}        // Acquire slot
-			defer func() { <-sem }() // Release slot
-			defer func() {           // Recover from panics
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			defer func() {
 				if r := recover(); r != nil {
 					log.Printf("SimulateGame panic: %v", r)
 				}
 			}()
-			sim.SimulateGame(db, []models.GameData{data})
+			sim.SimulateGame(
+				db, simData, homeLineup, awayLineup, pitchingSubProbs, homeBullpen, awayBullpen, bullpenRoleProbs, data,
+			)
 		}()
 	}
 	wg.Wait()
@@ -187,32 +194,39 @@ func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 			log.Printf("Failed to update job %s to running: %v", jid, err)
 		}
 
-		// numWorkers := runtime.NumCPU()
-		// simsPerWorker := n / numWorkers
-		// extra := n % numWorkers
+		simData, homeLineup, awayLineup, pitchingSubProbs, homeBullpen, awayBullpen, bullpenRoleProbs, err := sim.PrepareSimData(s.db, data)
+		if err != nil {
+			log.Printf("Failed to prepare simulation data: %v", err)
+			return
+		}
 
-		// var wg sync.WaitGroup
-		// for w := 0; w < numWorkers; w++ {
-		// 	runs := simsPerWorker
-		// 	if w < extra {
-		// 		runs++
-		// 	}
-		// 	wg.Add(1)
-		// 	go func(r int) {
-		// 		defer wg.Done()
-		// 		for i := 0; i < r; i++ {
-		// 			sim.SimulateGame(s.db, []models.GameData{data})
-		// 		}
-		// 	}(runs)
-		// }
+		const maxConcurrentSims = 8
+		sem := make(chan struct{}, maxConcurrentSims)
+		var wg sync.WaitGroup
 
-		// wg.Wait()
-		runSims(s.db, data, n)
+		for i := 0; i < n; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				sem <- struct{}{}
+				defer func() { <-sem }()
+				defer func() {
+					if r := recover(); r != nil {
+						log.Printf("SimulateGame panic: %v", r)
+					}
+				}()
+
+				sim.SimulateGame(
+					s.db, simData, homeLineup, awayLineup, pitchingSubProbs, homeBullpen, awayBullpen, bullpenRoleProbs, data,
+				)
+			}()
+		}
+		wg.Wait()
 
 		_, err = s.db.Exec(`
-			UPDATE simulation_jobs 
-			SET status = 'completed', result = $1, updated_at = NOW()
-			WHERE id = $2`, "Simulations complete", jid)
+    UPDATE simulation_jobs
+    SET status = 'completed', result = $1, updated_at = NOW()
+    WHERE id = $2`, "Simulations complete", jid)
 		if err != nil {
 			log.Printf("Failed to update job %s to completed: %v", jid, err)
 		}
@@ -246,7 +260,7 @@ func (s *APIServer) PostJobStatus(w http.ResponseWriter, req *http.Request) {
 	var result sql.NullString
 
 	err := s.db.QueryRow(`
-		SELECT status, result FROM simulation_jobs 
+		SELECT status, result FROM simulation_jobs
 		WHERE id = $1 AND user_id = $2`, body.JobID, body.UserID).Scan(&status, &result)
 	if err == sql.ErrNoRows {
 		http.Error(w, "Job not found", http.StatusNotFound)
@@ -387,7 +401,7 @@ func (s *APIServer) GetJobStatusQueryParams(w http.ResponseWriter, req *http.Req
 		var result sql.NullString
 
 		err := s.db.QueryRow(`
-			SELECT status, result FROM simulation_jobs 
+			SELECT status, result FROM simulation_jobs
 			WHERE id = $1 AND user_id = $2`, jobID, userID).Scan(&status, &result)
 		if err == sql.ErrNoRows {
 			http.Error(w, "Job not found", http.StatusNotFound)
@@ -414,7 +428,7 @@ func (s *APIServer) GetJobStatusQueryParams(w http.ResponseWriter, req *http.Req
 
 	// Case 2: Return all jobs for user
 	rows, err := s.db.Query(`
-		SELECT id, status, result FROM simulation_jobs 
+		SELECT id, status, result FROM simulation_jobs
 		WHERE user_id = $1 ORDER BY updated_at DESC`, userID)
 	if err != nil {
 		log.Printf("Error querying jobs for user %s: %v", userID, err)

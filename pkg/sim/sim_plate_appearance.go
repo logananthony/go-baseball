@@ -1,14 +1,13 @@
 package sim
 
 import (
-	"database/sql"
 	"fmt"
 
 	"github.com/logananthony/go-baseball/pkg/models"
 	"github.com/logananthony/go-baseball/pkg/utils"
 )
 
-func SimulatePlateAppearance(db *sql.DB, pa []models.PlateAppearanceData, sim []models.SimData) []models.PlateAppearanceResult {
+func SimulatePlateAppearance(pa []models.PlateAppearanceData, sim []models.SimData) []models.PlateAppearanceResult {
 
 	// db := config.ConnectDB()
 	// defer db.Close()

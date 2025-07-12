@@ -12,7 +12,25 @@ import (
 	"github.com/logananthony/go-baseball/pkg/utils"
 )
 
-func SimulateGame(db *sql.DB, gameData []models.GameData) {
+// func SimulateGame(db *sql.DB, gameData []models.GameData) {
+func SimulateGame(
+	db *sql.DB,
+	simData models.SimData,
+	homeLineup []models.GameDataGamePk,
+	awayLineup []models.GameDataGamePk,
+	pitchingSubProbs []models.PitchingSubstitutionProb,
+	homeBullpen *models.BullpenOrder,
+	awayBullpen *models.BullpenOrder,
+	bullpenRoleProbs []models.BullpenRoleProb,
+	gameData models.GameData, // for ids
+) {
+
+	// fmt.Printf("simData.PlayerInfo count: %d\n", len(simData.PlayerInfo))
+	// fmt.Printf("simData.BatterSwing count: %d\n", len(simData.BatterSwing))
+	// fmt.Printf("simData.BatterContact count: %d\n", len(simData.BatterContact))
+	// fmt.Printf("simData.BatterHitType count: %d\n", len(simData.BatterHitType))
+	// fmt.Printf("simData.LeagueContact count: %d\n", len(simData.LeagueContact))
+	// Add any others that are relevant for your lookups
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -23,7 +41,7 @@ func SimulateGame(db *sql.DB, gameData []models.GameData) {
 	// db := config.ConnectDB()
 	// defer db.Close()
 
-	gamePk, _ := fetcher.FetchGameDataByGamePk(db, gameData[0].GamePk)
+	gamePk, _ := fetcher.FetchGameDataByGamePk(db, gameData.GamePk)
 
 	first := gamePk[0]
 
@@ -33,67 +51,30 @@ func SimulateGame(db *sql.DB, gameData []models.GameData) {
 	awayTeam := first.AwayTeamAbbr
 	season := first.Season
 
-	simData := models.SimData{
-		PlayerInfo:          []models.MLBPlayerInfo{},
-		LeagueSwing:         []models.BatterSwingPercentageLeague{},
-		LeagueContact:       []models.BatterContactPercentageLeague{},
-		LeaguePitchCovMeans: []models.PitcherCovarianceMeanLeague{},
-		BatterSwing:         []models.BatterSwingPercentage{},
-		BatterContact:       []models.BatterContactPercentage{},
-		BatterHitType:       []models.BatterHitType{},
-		PitcherPitchFreq:    []models.PitcherCountPitchFreq{},
-		PitcherCovMeans:     []models.PitcherCovarianceMean{},
-		BatterEVDist:        []models.EVDistribution{},
-		BatterLADist:        []models.LADistribution{},
-		BatterSprayDist:     []models.SprayDistribution{},
-		MLBParkFactors:      []models.ParkFactors{},
-		HomeTeam:            homeTeam,
-	}
-
 	gameRes := models.GameResult{
 		GameId: uuid.New().String(),
-		GamePk: gameData[0].GamePk,
-		JobId:  gameData[0].JobId,
+		GamePk: gameData.GamePk,
+		JobId:  gameData.JobId,
 	}
-
-	homeBullpen := fetcher.FetchBullpenOrder(db, homeTeam, season)
-	awayBullpen := fetcher.FetchBullpenOrder(db, awayTeam, season)
 
 	// === FIX: Fetch starter pitcher info early and append to simData.PlayerInfo ===
-	awayStarterInfoSlice, _ := fetcher.FetchPlayerInfo(db, awayStartingPitcher)
-	homeStarterInfoSlice, _ := fetcher.FetchPlayerInfo(db, homeStartingPitcher)
-	simData.PlayerInfo = append(simData.PlayerInfo, awayStarterInfoSlice...)
-	simData.PlayerInfo = append(simData.PlayerInfo, homeStarterInfoSlice...)
+	// awayStarterInfoSlice, _ := fetcher.FetchPlayerInfo(db, awayStartingPitcher)
+	// homeStarterInfoSlice, _ := fetcher.FetchPlayerInfo(db, homeStartingPitcher)
+	// simData.PlayerInfo = append(simData.PlayerInfo, awayStarterInfoSlice...)
+	// simData.PlayerInfo = append(simData.PlayerInfo, homeStarterInfoSlice...)
 
-	// Now safe to build playerInfoMap
-	var playerInfoMap map[int]models.MLBPlayerInfo
+	// fmt.Println("Fetching full game lineup data...")
+	// allGameData, _ := fetcher.FetchGameDataByGamePk(db, gameData.GamePk)
+	// fmt.Println("Fetched full game lineup data")
 
-	fmt.Println("Fetching full game lineup data...")
-	allGameData, _ := fetcher.FetchGameDataByGamePk(db, gameData[0].GamePk)
-	fmt.Println("Fetched full game lineup data")
-
-	var homeLineup []models.GameDataGamePk
-	var awayLineup []models.GameDataGamePk
-
-	for _, entry := range allGameData {
-		switch entry.Team {
-		case "home":
-			homeLineup = append(homeLineup, entry)
-		case "away":
-			awayLineup = append(awayLineup, entry)
-		}
-	}
-
-	// log.Printf("🏠 Home Team: %+v", homeTeam)
-	// log.Printf("🏠 Home Bullpen IDs: %+v", homeBullpen)
-	// log.Printf("🆔 PlayerID1: %d", homeBullpen.PlayerID1)
-	// log.Printf("🆔 PlayerID2: %d", homeBullpen.PlayerID2)
-	// log.Printf("🆔 PlayerID3: %d", homeBullpen.PlayerID3)
-	// log.Printf("🆔 PlayerID4: %d", homeBullpen.PlayerID4)
-	// log.Printf("🆔 PlayerID5: %d", homeBullpen.PlayerID5)
-	// log.Printf("🆔 PlayerID6: %d", homeBullpen.PlayerID6)
-	// log.Printf("🆔 PlayerID7: %d", homeBullpen.PlayerID7)
-	// log.Printf("🆔 PlayerID8: %d", homeBullpen.PlayerID8)
+	// for _, entry := range allGameData {
+	// 	switch entry.Team {
+	// 	case "home":
+	// 		homeLineup = append(homeLineup, entry)
+	// 	case "away":
+	// 		awayLineup = append(awayLineup, entry)
+	// 	}
+	// }
 
 	homePitcherLineup := [][]int{
 		{homeStartingPitcher, season},
@@ -138,98 +119,9 @@ func SimulateGame(db *sql.DB, gameData []models.GameData) {
 	awayPitcher = awayPitcherLineup[0][0]
 	awayPitcherGameYear = awayPitcherLineup[0][1]
 
-	fmt.Println("Caching league-level data...")
+	// fmt.Println("Caching league-level data...")
 
 	simData.HomeTeam = homeTeam
-	pitchingSubProbs, _ := fetcher.FetchPitchingSubstitutionProbs(db)
-	simData.LeagueSwing = append(simData.LeagueSwing, fetcher.FetchBatterSwingPercentageLeague()...)
-	simData.LeagueContact = append(simData.LeagueContact, fetcher.FetchBatterContactPercentageLeague()...)
-	simData.LeaguePitchCovMeans = append(simData.LeaguePitchCovMeans, fetcher.FetchPitcherCovarianceMeanLeague()...)
-	if pf, ok := fetcher.FetchParkFactors(db, homeTeam); ok {
-		simData.MLBParkFactors = append(simData.MLBParkFactors, pf)
-	}
-
-	fmt.Println("Finished caching base simulation data ✅")
-
-	for _, awayBatter := range awayLineup {
-		if awayBatter.BattingOrder > 0 && awayBatter.BattingOrder <= 9 {
-			awayBatterGameYear := awayBatter.Season
-			awayBatterInfo, _ := fetcher.FetchPlayerInfo(db, awayBatter.PlayerId)
-			awayBatterSwingProbs, _ := fetcher.FetchBatterSwingPercentage(db, awayBatter.PlayerId, awayBatterGameYear)
-			awayBatterContactProbs, _ := fetcher.FetchBatterContactPercentage(db, awayBatter.PlayerId, awayBatterGameYear)
-			awayBatterHitProbs, _ := fetcher.FetchBatterHitType(db, awayBatter.PlayerId, awayBatterGameYear)
-			// awayBatterEvDist := fetcher.FetchEVDistributions(db, awayBatterGameYear, awayBatter.PlayerId)
-			// awayBatterLaDist := fetcher.FetchLADistributions(db, awayBatterGameYear, awayBatter.PlayerId)
-			// awayBatterSprayDist := fetcher.FetchSprayDistributions(db, awayBatterGameYear, awayBatter.PlayerId)
-
-			simData.PlayerInfo = append(simData.PlayerInfo, awayBatterInfo...)
-			simData.BatterSwing = append(simData.BatterSwing, awayBatterSwingProbs...)
-			simData.BatterContact = append(simData.BatterContact, awayBatterContactProbs...)
-			simData.BatterHitType = append(simData.BatterHitType, awayBatterHitProbs...)
-			// simData.BatterEVDist = append(simData.BatterEVDist, awayBatterEvDist...)
-			// simData.BatterLADist = append(simData.BatterLADist, awayBatterLaDist...)
-			// simData.BatterSprayDist = append(simData.BatterSprayDist, awayBatterSprayDist...)
-		}
-	}
-
-	for _, homeBatter := range homeLineup {
-		if homeBatter.BattingOrder > 0 && homeBatter.BattingOrder <= 9 {
-			homeBatterGameYear := homeBatter.Season
-			homeBatterInfo, _ := fetcher.FetchPlayerInfo(db, homeBatter.PlayerId)
-			homeBatterSwingProbs, _ := fetcher.FetchBatterSwingPercentage(db, homeBatter.PlayerId, homeBatterGameYear)
-			homeBatterContactProbs, _ := fetcher.FetchBatterContactPercentage(db, homeBatter.PlayerId, homeBatterGameYear)
-			homeBatterHitProbs, _ := fetcher.FetchBatterHitType(db, homeBatter.PlayerId, homeBatterGameYear)
-			// homeBatterEvDist := fetcher.FetchEVDistributions(db, homeBatterGameYear, homeBatter.PlayerId)
-			// homeBatterLaDist := fetcher.FetchLADistributions(db, homeBatterGameYear, homeBatter.PlayerId)
-			// homeBatterSprayDist := fetcher.FetchSprayDistributions(db, homeBatterGameYear, homeBatter.PlayerId)
-
-			simData.PlayerInfo = append(simData.PlayerInfo, homeBatterInfo...)
-			simData.BatterSwing = append(simData.BatterSwing, homeBatterSwingProbs...)
-			simData.BatterContact = append(simData.BatterContact, homeBatterContactProbs...)
-			simData.BatterHitType = append(simData.BatterHitType, homeBatterHitProbs...)
-			// simData.BatterEVDist = append(simData.BatterEVDist, homeBatterEvDist...)
-			// simData.BatterLADist = append(simData.BatterLADist, homeBatterLaDist...)
-			// simData.BatterSprayDist = append(simData.BatterSprayDist, homeBatterSprayDist...)
-		}
-	}
-
-	playerInfoMap = make(map[int]models.MLBPlayerInfo)
-	for _, player := range simData.PlayerInfo {
-		if player.ID != nil {
-			playerInfoMap[*player.ID] = player
-		}
-	}
-
-	for i := 0; i <= 8; i++ {
-
-		homePitcher := homePitcherLineup[i][0]
-		homePitcherGameYear := homePitcherLineup[i][1]
-		homePitchFreqsR := fetcher.FetchPitcherFrequencies(db, homePitcher, "R", homePitcherGameYear)
-		homePitchFreqsL := fetcher.FetchPitcherFrequencies(db, homePitcher, "L", homePitcherGameYear)
-		homePitcherCov := fetcher.FetchPitcherCovarianceMean(db, int64(homePitcher), int64(homePitcherGameYear))
-		homePitcherInfo, _ := fetcher.FetchPlayerInfo(db, homePitcher)
-
-		simData.PitcherPitchFreq = append(simData.PitcherPitchFreq, homePitchFreqsR...)
-		simData.PitcherPitchFreq = append(simData.PitcherPitchFreq, homePitchFreqsL...)
-		simData.PitcherCovMeans = append(simData.PitcherCovMeans, homePitcherCov...)
-		simData.PlayerInfo = append(simData.PlayerInfo, homePitcherInfo...)
-
-		awayPitcher := awayPitcherLineup[i][0]
-		awayPitcherGameYear := awayPitcherLineup[i][1]
-		awayPitchFreqsR := fetcher.FetchPitcherFrequencies(db, awayPitcher, "R", awayPitcherGameYear)
-		awayPitchFreqsL := fetcher.FetchPitcherFrequencies(db, awayPitcher, "L", awayPitcherGameYear)
-		awayPitcherCov := fetcher.FetchPitcherCovarianceMean(db, int64(awayPitcher), int64(awayPitcherGameYear))
-		awayPitcherInfo, _ := fetcher.FetchPlayerInfo(db, awayPitcher)
-
-		simData.PitcherPitchFreq = append(simData.PitcherPitchFreq, awayPitchFreqsR...)
-		simData.PitcherPitchFreq = append(simData.PitcherPitchFreq, awayPitchFreqsL...)
-		simData.PitcherCovMeans = append(simData.PitcherCovMeans, awayPitcherCov...)
-		simData.PlayerInfo = append(simData.PlayerInfo, awayPitcherInfo...)
-	}
-
-	fmt.Println("simData has been written to sim_data.json")
-
-	fmt.Println("Done caching data.")
 
 	for {
 
@@ -250,10 +142,10 @@ func SimulateGame(db *sql.DB, gameData []models.GameData) {
 		} else {
 			pitcherPulledHome = false
 		}
-		fmt.Printf("✅ Cached %d pitcher substitution probabilities\n", len(pitchingSubProbs))
-		for _, p := range pitchingSubProbs[:min(3, len(pitchingSubProbs))] {
-			fmt.Printf("Example substitution rule: %+v\n", p)
-		}
+		// fmt.Printf("✅ Cached %d pitcher substitution probabilities\n", len(pitchingSubProbs))
+		// for _, p := range pitchingSubProbs[:min(3, len(pitchingSubProbs))] {
+		// 	fmt.Printf("Example substitution rule: %+v\n", p)
+		// }
 
 		usedPitchersHome := map[int]bool{}
 
@@ -267,7 +159,12 @@ func SimulateGame(db *sql.DB, gameData []models.GameData) {
 					runDiff := awayScore - homeScore // for homePitcher (home is pitching)
 					runnersOn := utils.CountRunners(awayBaseState)
 
-					selected := utils.SelectBullpenPitcherLineup(db, homePitcherLineup, inning, runDiff, runnersOn, usedPitchersHome)
+					selected := utils.SelectBullpenPitcherLineup(
+						homePitcherLineup,
+						bullpenRoleProbs,
+						inning, runDiff, runnersOn, usedPitchersHome,
+					)
+
 					if selected != nil {
 						homePitcher = selected[0]
 						homePitcherGameYear = selected[1]
@@ -307,7 +204,11 @@ func SimulateGame(db *sql.DB, gameData []models.GameData) {
 					runDiff := homeScore - awayScore // for awayPitcher (away is pitching)
 					runnersOn := utils.CountRunners(homeBaseState)
 
-					selected := utils.SelectBullpenPitcherLineup(db, awayPitcherLineup, inning, runDiff, runnersOn, usedPitchersAway)
+					selected := utils.SelectBullpenPitcherLineup(
+						awayPitcherLineup,
+						bullpenRoleProbs,
+						inning, runDiff, runnersOn, usedPitchersAway,
+					)
 					if selected != nil {
 						awayPitcher = selected[0]
 						awayPitcherGameYear = selected[1]
@@ -323,13 +224,13 @@ func SimulateGame(db *sql.DB, gameData []models.GameData) {
 			}
 		}
 
-		fmt.Println("Top Inning:", inning)
+		// fmt.Println("Top Inning:", inning)
 
 		for topOuts < 3 {
 			awayBatterNumber = awayBatterNumber % 9
 			awayBatter := awayLineup[awayBatterNumber]
 			awayBatterGameYear := awayBatter.Season
-			awayPaResult := SimulatePlateAppearance(db, []models.PlateAppearanceData{{
+			awayPaResult := SimulatePlateAppearance([]models.PlateAppearanceData{{
 				BatterGameYear:  awayBatterGameYear,
 				BatterId:        awayBatter.PlayerId,
 				PitcherGameYear: homePitcherGameYear,
@@ -351,14 +252,14 @@ func SimulateGame(db *sql.DB, gameData []models.GameData) {
 
 			// ────────────────────────────────────────────────────────────────────────
 
-			fmt.Println("Batter #:", awayBatterNumber,
-				"| Pitcher :", homePitcher,
-				"| Event:", awayPaResult[0].EventType[len(awayPaResult[0].EventType)-1],
-				// "| EV:", awayPaResult[0].ExitVelocity[len(awayPaResult[0].ExitVelocity)-1],
-				// "| LA:", awayPaResult[0].LaunchAngle[len(awayPaResult[0].LaunchAngle)-1],
-				// "| SA:", awayPaResult[0].SprayAngle[len(awayPaResult[0].SprayAngle)-1],
-				"| Base State:", awayBaseState[0], awayBaseState[1], awayBaseState[2],
-				"| Score:", awayScore, "-", homeScore)
+			// fmt.Println("Batter #:", awayBatterNumber,
+			// 	"| Pitcher :", homePitcher,
+			// 	"| Event:", awayPaResult[0].EventType[len(awayPaResult[0].EventType)-1],
+			// 	// "| EV:", awayPaResult[0].ExitVelocity[len(awayPaResult[0].ExitVelocity)-1],
+			// 	// "| LA:", awayPaResult[0].LaunchAngle[len(awayPaResult[0].LaunchAngle)-1],
+			// 	// "| SA:", awayPaResult[0].SprayAngle[len(awayPaResult[0].SprayAngle)-1],
+			// 	"| Base State:", awayBaseState[0], awayBaseState[1], awayBaseState[2],
+			// 	"| Score:", awayScore, "-", homeScore)
 
 			awayScore, awayBaseState, topOuts = ProcessPlateAppearance(
 				awayPaResult, awayScore, awayBaseState, topOuts,
@@ -379,13 +280,13 @@ func SimulateGame(db *sql.DB, gameData []models.GameData) {
 			break
 		}
 
-		fmt.Println("Bottom Inning:", inning)
+		// fmt.Println("Bottom Inning:", inning)
 
 		for botOuts < 3 {
 			homeBatterNumber = homeBatterNumber % 9
 			homeBatter := homeLineup[homeBatterNumber]
 			homeBatterGameYear := homeBatter.Season
-			homePaResult := SimulatePlateAppearance(db, []models.PlateAppearanceData{{
+			homePaResult := SimulatePlateAppearance([]models.PlateAppearanceData{{
 				BatterGameYear:  homeBatterGameYear,
 				BatterId:        homeBatter.PlayerId,
 				PitcherGameYear: awayPitcherGameYear,
@@ -405,14 +306,14 @@ func SimulateGame(db *sql.DB, gameData []models.GameData) {
 
 			atBatNumber++
 
-			fmt.Println("Batter #:", homeBatterNumber,
-				"| Pitcher :", awayPitcher,
-				"| Event:", homePaResult[0].EventType[len(homePaResult[0].EventType)-1],
-				// "| EV:", homePaResult[0].ExitVelocity[len(homePaResult[0].ExitVelocity)-1],
-				// "| LA:", homePaResult[0].LaunchAngle[len(homePaResult[0].LaunchAngle)-1],
-				// "| SA:", homePaResult[0].SprayAngle[len(homePaResult[0].SprayAngle)-1],
-				"| Base State:", homeBaseState[0], homeBaseState[1], homeBaseState[2],
-				"| Score:", awayScore, "-", homeScore)
+			// fmt.Println("Batter #:", homeBatterNumber,
+			// 	"| Pitcher :", awayPitcher,
+			// 	"| Event:", homePaResult[0].EventType[len(homePaResult[0].EventType)-1],
+			// 	// "| EV:", homePaResult[0].ExitVelocity[len(homePaResult[0].ExitVelocity)-1],
+			// 	// "| LA:", homePaResult[0].LaunchAngle[len(homePaResult[0].LaunchAngle)-1],
+			// 	// "| SA:", homePaResult[0].SprayAngle[len(homePaResult[0].SprayAngle)-1],
+			// 	"| Base State:", homeBaseState[0], homeBaseState[1], homeBaseState[2],
+			// 	"| Score:", awayScore, "-", homeScore)
 
 			homeScore, homeBaseState, botOuts = ProcessPlateAppearance(
 				homePaResult, homeScore, homeBaseState, botOuts,

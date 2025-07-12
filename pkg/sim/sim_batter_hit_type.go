@@ -57,6 +57,15 @@ import (
 func SimulateBatterHitType(in []models.BatterHitType, stand, pThrows, pitchType string, plateX, plateZ, velocity float64, teamAbbr string, pf []models.ParkFactors) string {
 	zone_num := utils.GetPitchZone(plateX, plateZ)
 	velo_bucket := utils.GetVelocityBucket(velocity)
+	// Alias map for in-memory lookup, should match fetcher.FetchParkFactors
+	abbrMap := map[string]string{
+		"AZ":  "ARI",
+		"ATH": "OAK",
+		// etc
+	}
+	if val, ok := abbrMap[teamAbbr]; ok {
+		teamAbbr = val
+	}
 
 	var bestScore int
 	var selected *models.BatterHitType
@@ -113,7 +122,7 @@ func SimulateBatterHitType(in []models.BatterHitType, stand, pThrows, pitchType 
 
 	// ─── Park Factor Adjustments ──────────────────────────────────────────
 	if found {
-		fmt.Printf("🌍 Applying park factors for %s (%s): %+v\n", teamAbbr, park.Venue, park)
+		// fmt.Printf("🌍 Applying park factors for %s (%s): %+v\n", teamAbbr, park.Venue, park)
 
 		before := make([]float64, len(probs))
 		copy(before, probs)
@@ -124,9 +133,9 @@ func SimulateBatterHitType(in []models.BatterHitType, stand, pThrows, pitchType 
 		probs[3] *= float64(park.HR) / 100.0
 		probs[4] *= 2.0 - float64(park.H)/100.0
 
-		for i := range outcomes {
-			fmt.Printf("🔢 %s: raw=%.4f → adjusted=%.4f\n", outcomes[i], before[i], probs[i])
-		}
+		// for i := range outcomes {
+		// 	fmt.Printf("🔢 %s: raw=%.4f → adjusted=%.4f\n", outcomes[i], before[i], probs[i])
+		// }
 	} else {
 		fmt.Printf("⚠️  No park factor found for team: %s\n", teamAbbr)
 	}

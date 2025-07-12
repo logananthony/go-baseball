@@ -20,8 +20,8 @@ func SimulatePitchLocationVelo(player []models.PitcherCovarianceMean, league []m
 		count_state = "ahead"
 	}
 
-	fmt.Printf("SimulatePitchLocationVelo called with:\n")
-	fmt.Printf("  Pitch Type: %s, Stand: %s, Balls: %d, Strikes: %d, Count State: %s\n", pitch_type, stand, balls, strikes, count_state)
+	// fmt.Printf("SimulatePitchLocationVelo called with:\n")
+	// fmt.Printf("  Pitch Type: %s, Stand: %s, Balls: %d, Strikes: %d, Count State: %s\n", pitch_type, stand, balls, strikes, count_state)
 
 	src := rand.NewSource(uint64(time.Now().UnixNano())) // Use uint64 for Seed
 	player_mean_mat := []float64{}
@@ -34,7 +34,7 @@ func SimulatePitchLocationVelo(player []models.PitcherCovarianceMean, league []m
 		if each.CountState == count_state && each.PitchType == pitch_type && each.Stand == stand {
 			// fmt.Println("  Match found in player data.")
 			if each.Count >= 1 {
-				fmt.Println("  Player data has sufficient count.")
+				// fmt.Println("  Player data has sufficient count.")
 				player_mean_mat = append(player_mean_mat, each.MeanPlateX, each.MeanPlateZ, each.MeanVelo)
 
 				player_cov_mat = mat.NewSymDense(3, []float64{
@@ -53,9 +53,9 @@ func SimulatePitchLocationVelo(player []models.PitcherCovarianceMean, league []m
 		// fmt.Println("Player data successfully used for simulation.")
 		sample := distmv.NormalRandCov(nil, player_mean_mat, player_cov_mat, src)
 		return sample
-	} else {
-		fmt.Println("No valid player data found.")
 	}
+
+	// fmt.Println("No valid player data found.")
 
 	league_mean_mat := []float64{}
 	var league_cov_mat *mat.SymDense
@@ -65,7 +65,7 @@ func SimulatePitchLocationVelo(player []models.PitcherCovarianceMean, league []m
 	for _, each := range league {
 		// fmt.Printf("  League Entry: %+v\n", each)
 		if each.CountState == count_state && each.PitchType == pitch_type && each.Stand == stand {
-			fmt.Println("  Match found in league data.")
+			// fmt.Println("  Match found in league data.")
 			league_mean_mat = append(league_mean_mat, each.MeanPlateX, each.MeanPlateZ, each.MeanVelo)
 
 			league_cov_mat = mat.NewSymDense(3, []float64{
@@ -78,10 +78,10 @@ func SimulatePitchLocationVelo(player []models.PitcherCovarianceMean, league []m
 		}
 	}
 
-	if len(league_mean_mat) == 0 || league_cov_mat == nil {
-		fmt.Println("No valid league data found.")
-	}
+	// if len(league_mean_mat) == 0 || league_cov_mat == nil {
+	// 	fmt.Println("No valid league data found.")
+	// }
 
-	fmt.Println("Returning default value: [0, 0, 0]")
+	// fmt.Println("Returning default value: [0, 0, 0]")
 	return []float64{0, 0, 0}
 }
