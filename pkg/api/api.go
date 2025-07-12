@@ -197,6 +197,14 @@ func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 		simData, homeLineup, awayLineup, pitchingSubProbs, homeBullpen, awayBullpen, bullpenRoleProbs, err := sim.PrepareSimData(s.db, data)
 		if err != nil {
 			log.Printf("Failed to prepare simulation data: %v", err)
+			// Mark job as failed and store the error for user feedback:
+			_, updErr := s.db.Exec(`
+        UPDATE simulation_jobs
+        SET status = 'failed', result = $1, updated_at = NOW()
+        WHERE id = $2`, err.Error(), jid)
+			if updErr != nil {
+				log.Printf("Failed to mark job %s as failed: %v", jid, updErr)
+			}
 			return
 		}
 

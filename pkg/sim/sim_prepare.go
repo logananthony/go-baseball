@@ -2,14 +2,14 @@ package sim
 
 import (
 	"database/sql"
+	"fmt"
 
 	"github.com/logananthony/go-baseball/pkg/fetcher"
 	"github.com/logananthony/go-baseball/pkg/models"
 )
 
 // PrepareSimData fetches and builds all setup data for a simulation job.
-// It does NOT put pitchingSubProbs, homeBullpen, or awayBullpen inside SimData struct;
-// these are returned as separate values and should be passed as function args to SimulateGame.
+// Returns error if anything critical is missing.
 func PrepareSimData(
 	db *sql.DB,
 	gameData models.GameData,
@@ -20,10 +20,14 @@ func PrepareSimData(
 	[]models.PitchingSubstitutionProb, // pitchingSubProbs
 	*models.BullpenOrder, // homeBullpen
 	*models.BullpenOrder, // awayBullpen
-	[]models.BullpenRoleProb, // bullpenRoleProbs (NEW)
+	[]models.BullpenRoleProb, // bullpenRoleProbs
 	error,
 ) {
-	gamePkData, _ := fetcher.FetchGameDataByGamePk(db, gameData.GamePk)
+	// Fetch core game data
+	gamePkData, err := fetcher.FetchGameDataByGamePk(db, gameData.GamePk)
+	if err != nil || len(gamePkData) == 0 {
+		return models.SimData{}, nil, nil, nil, nil, nil, nil, fmt.Errorf("no game data for gamePk %d", gameData.GamePk)
+	}
 	first := gamePkData[0]
 	homeTeam := first.HomeTeamAbbr
 	awayTeam := first.AwayTeamAbbr
@@ -31,7 +35,60 @@ func PrepareSimData(
 	homeStartingPitcher := first.HomePitcherId
 	awayStartingPitcher := first.AwayPitcherId
 
-	// Build SimData (the struct that will be reused across all simulations for this job)
+	// Park Factors
+	var parkFactors []models.ParkFactors
+	if pf, ok := fetcher.FetchParkFactors(db, homeTeam); ok {
+		parkFactors = append(parkFactors, pf)
+	} else {
+		return models.SimData{}, nil, nil, nil, nil, nil, nil, fmt.Errorf("no park factors for homeTeam %s", homeTeam)
+	}
+
+	// PitchingSubProbs, Bullpens
+	pitchingSubProbs, err := fetcher.FetchPitchingSubstitutionProbs(db)
+	if err != nil {
+		return models.SimData{}, nil, nil, nil, nil, nil, nil, fmt.Errorf("could not fetch pitching substitution probs: %v", err)
+	}
+	homeBullpen := fetcher.FetchBullpenOrder(db, homeTeam, season)
+	awayBullpen := fetcher.FetchBullpenOrder(db, awayTeam, season)
+	if homeBullpen == nil {
+		return models.SimData{}, nil, nil, nil, nil, nil, nil, fmt.Errorf("missing home bullpen for %s, %d", homeTeam, season)
+	}
+	if awayBullpen == nil {
+		return models.SimData{}, nil, nil, nil, nil, nil, nil, fmt.Errorf("missing away bullpen for %s, %d", awayTeam, season)
+	}
+
+	// Starter info
+	awayStarterInfoSlice, err := fetcher.FetchPlayerInfo(db, awayStartingPitcher)
+	if err != nil || len(awayStarterInfoSlice) == 0 {
+		return models.SimData{}, nil, nil, nil, nil, nil, nil, fmt.Errorf("no info for away starting pitcher %d", awayStartingPitcher)
+	}
+	homeStarterInfoSlice, err := fetcher.FetchPlayerInfo(db, homeStartingPitcher)
+	if err != nil || len(homeStarterInfoSlice) == 0 {
+		return models.SimData{}, nil, nil, nil, nil, nil, nil, fmt.Errorf("no info for home starting pitcher %d", homeStartingPitcher)
+	}
+
+	// Lineups
+	allGameData, err := fetcher.FetchGameDataByGamePk(db, gameData.GamePk)
+	if err != nil || len(allGameData) == 0 {
+		return models.SimData{}, nil, nil, nil, nil, nil, nil, fmt.Errorf("no game data for gamePk %d (again)", gameData.GamePk)
+	}
+	var homeLineup, awayLineup []models.GameDataGamePk
+	for _, entry := range allGameData {
+		switch entry.Team {
+		case "home":
+			homeLineup = append(homeLineup, entry)
+		case "away":
+			awayLineup = append(awayLineup, entry)
+		}
+	}
+	if len(homeLineup) < 9 {
+		return models.SimData{}, nil, nil, nil, nil, nil, nil, fmt.Errorf("home lineup too short (%d players)", len(homeLineup))
+	}
+	if len(awayLineup) < 9 {
+		return models.SimData{}, nil, nil, nil, nil, nil, nil, fmt.Errorf("away lineup too short (%d players)", len(awayLineup))
+	}
+
+	// Build SimData
 	simData := models.SimData{
 		PlayerInfo:          []models.MLBPlayerInfo{},
 		LeagueSwing:         fetcher.FetchBatterSwingPercentageLeague(),
@@ -45,40 +102,15 @@ func PrepareSimData(
 		BatterEVDist:        []models.EVDistribution{},
 		BatterLADist:        []models.LADistribution{},
 		BatterSprayDist:     []models.SprayDistribution{},
-		MLBParkFactors:      []models.ParkFactors{},
+		MLBParkFactors:      parkFactors,
 		HomeTeam:            homeTeam,
 	}
 
-	// Park Factors
-	if pf, ok := fetcher.FetchParkFactors(db, homeTeam); ok {
-		simData.MLBParkFactors = append(simData.MLBParkFactors, pf)
-	}
-
-	// ---- Fetch the extra setup objects (not in SimData) ----
-	pitchingSubProbs, _ := fetcher.FetchPitchingSubstitutionProbs(db)
-	homeBullpen := fetcher.FetchBullpenOrder(db, homeTeam, season)
-	awayBullpen := fetcher.FetchBullpenOrder(db, awayTeam, season)
-	// --------------------------------------------------------
-
-	// Starter info
-	awayStarterInfoSlice, _ := fetcher.FetchPlayerInfo(db, awayStartingPitcher)
-	homeStarterInfoSlice, _ := fetcher.FetchPlayerInfo(db, homeStartingPitcher)
+	// Add starter info
 	simData.PlayerInfo = append(simData.PlayerInfo, awayStarterInfoSlice...)
 	simData.PlayerInfo = append(simData.PlayerInfo, homeStarterInfoSlice...)
 
-	// Lineups (all game data, split into home/away)
-	allGameData, _ := fetcher.FetchGameDataByGamePk(db, gameData.GamePk)
-	var homeLineup, awayLineup []models.GameDataGamePk
-	for _, entry := range allGameData {
-		switch entry.Team {
-		case "home":
-			homeLineup = append(homeLineup, entry)
-		case "away":
-			awayLineup = append(awayLineup, entry)
-		}
-	}
-
-	// Add individual batter/player info for away lineup
+	// Individual batter/player info for away lineup
 	for _, awayBatter := range awayLineup {
 		if awayBatter.BattingOrder > 0 && awayBatter.BattingOrder <= 9 {
 			awayBatterGameYear := awayBatter.Season
@@ -86,7 +118,6 @@ func PrepareSimData(
 			awayBatterSwingProbs, _ := fetcher.FetchBatterSwingPercentage(db, awayBatter.PlayerId, awayBatterGameYear)
 			awayBatterContactProbs, _ := fetcher.FetchBatterContactPercentage(db, awayBatter.PlayerId, awayBatterGameYear)
 			awayBatterHitProbs, _ := fetcher.FetchBatterHitType(db, awayBatter.PlayerId, awayBatterGameYear)
-			// You can add additional fetches here for EV/LA/Spray if needed
 
 			simData.PlayerInfo = append(simData.PlayerInfo, awayBatterInfo...)
 			simData.BatterSwing = append(simData.BatterSwing, awayBatterSwingProbs...)
@@ -95,7 +126,7 @@ func PrepareSimData(
 		}
 	}
 
-	// Add individual batter/player info for home lineup
+	// Individual batter/player info for home lineup
 	for _, homeBatter := range homeLineup {
 		if homeBatter.BattingOrder > 0 && homeBatter.BattingOrder <= 9 {
 			homeBatterGameYear := homeBatter.Season
@@ -103,7 +134,6 @@ func PrepareSimData(
 			homeBatterSwingProbs, _ := fetcher.FetchBatterSwingPercentage(db, homeBatter.PlayerId, homeBatterGameYear)
 			homeBatterContactProbs, _ := fetcher.FetchBatterContactPercentage(db, homeBatter.PlayerId, homeBatterGameYear)
 			homeBatterHitProbs, _ := fetcher.FetchBatterHitType(db, homeBatter.PlayerId, homeBatterGameYear)
-			// You can add additional fetches here for EV/LA/Spray if needed
 
 			simData.PlayerInfo = append(simData.PlayerInfo, homeBatterInfo...)
 			simData.BatterSwing = append(simData.BatterSwing, homeBatterSwingProbs...)
@@ -138,7 +168,7 @@ func PrepareSimData(
 	allPitchers := append(homePitchers, awayPitchers...)
 	allPitcherYears := make([]int, len(allPitchers))
 	for i := range allPitchers {
-		allPitcherYears[i] = season // You could use per-pitcher season if needed
+		allPitcherYears[i] = season // Could use per-pitcher season if needed
 	}
 
 	for i, pitcherId := range allPitchers {
@@ -156,5 +186,4 @@ func PrepareSimData(
 	bullpenRoleProbs, _ := fetcher.FetchBullpenRoleProbs(db, homeTeam, awayTeam, season)
 
 	return simData, homeLineup, awayLineup, pitchingSubProbs, homeBullpen, awayBullpen, bullpenRoleProbs, nil
-
 }
