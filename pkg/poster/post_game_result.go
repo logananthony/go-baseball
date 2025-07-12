@@ -1,162 +1,125 @@
-// package poster
-
-// import (
-// 	"database/sql"
-// 	"fmt"
-// 	"time"
-
-// 	"github.com/logananthony/go-baseball/pkg/models"
-// )
-
-// func toNullableString(slice []string, i int) string {
-// 	if slice == nil || len(slice) <= i {
-// 		return ""
-// 	}
-// 	return slice[i]
-// }
-
-// func toNullableInt(slice []int, i int) int {
-// 	if slice == nil || len(slice) <= i {
-// 		return 0
-// 	}
-// 	return slice[i]
-// }
-
-// func InsertGameResult(db *sql.DB, gameId string, jobId string, gameYear int, result models.GameResult) error {
-// 	pa := result.PAResult
-
-// 	// Ensure all slices in PlateAppearanceResult are of the same length
-// 	numPitches := len(pa.PitcherId) // Use one of the slices to determine the number of pitches
-// 	for i := 0; i < numPitches; i++ {
-// 		_, err := db.Exec(`
-//             INSERT INTO game_result (
-//                 game_id, game_year,
-//                 at_bat_number, inning, inning_topbot,
-//                 outs, on1B, on2B, on3B,
-//                 away_score, home_score,
-//                 pitcherid, pitcher_fullname, pitcher_game_year,
-//                 batterid, batter_fullname, batter_game_year,
-//                 batter_stands, pitcher_throws,
-//                 strikes, balls, pitch_count,
-//                 pitch_type, plate_x, plate_z, zone,
-//                 velocity, is_strike, is_swing, is_contact,
-//                 event_type, exit_velocity, launch_angle, spray_angle,
-//                 created_at, jobId
-//             ) VALUES (
-//                 $1, $2, $3, $4, $5,
-//                 $6, $7, $8, $9,
-//                 $10, $11,
-//                 $12, $13, $14,
-//                 $15, $16, $17,
-//                 $18, $19,
-//                 $20, $21, $22,
-//                 $23, $24, $25, $26,
-//                 $27, $28, $29, $30,
-//                 $31, $32, $33, $34,
-//                 $35, $36
-//             )
-//         `,
-// 			gameId, gameYear,
-// 			pa.AtBatNumber[i], pa.Inning[i], pa.InningTopBot[i],
-// 			pa.Outs[i], pa.On1b[i], pa.On2b[i], pa.On3b[i],
-// 			pa.AwayScore[i], pa.HomeScore[i],
-// 			pa.PitcherId[i], toNullableString(pa.PitcherFullName, i), toNullableInt(pa.PitcherGameYear, i),
-// 			pa.BatterId[i], toNullableString(pa.BatterFullName, i), toNullableInt(pa.BatterGameYear, i),
-// 			toNullableString(pa.BatterStands, i), toNullableString(pa.PitcherThrows, i),
-// 			pa.Strikes[i], pa.Balls[i], pa.PitchCount[i],
-// 			toNullableString(pa.PitchType, i), pa.PlateX[i], pa.PlateZ[i], pa.Zone[i],
-// 			pa.Velocity[i], pa.IsStrike[i], pa.IsSwing[i], toNullableString(pa.IsContact, i),
-// 			toNullableString(pa.EventType, i), pa.ExitVelocity[i], pa.LaunchAngle[i], pa.SprayAngle[i], time.Now(),
-// 			jobId,
-// 		)
-
-// 		if err != nil {
-// 			fmt.Printf("🚨 INSERT FAILED for AtBatNumber %d, Pitch %d: %v\n", pa.AtBatNumber[i], i+1, err)
-// 			return err
-// 		}
-
-// 		fmt.Printf("✅ Inserted pitch %d for AtBatNumber: %d\n", i+1, pa.AtBatNumber[i])
-// 	}
-// 	return nil
-// }
-
 package poster
 
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/logananthony/go-baseball/pkg/models"
 )
 
-func toNullableString(slice []string, i int) string {
-	if slice == nil || len(slice) <= i {
-		return ""
+// -- NULL HELPERS -- //
+func toNullString(slice []string, i int) sql.NullString {
+	if slice == nil || len(slice) <= i || slice[i] == "" {
+		return sql.NullString{}
 	}
-	return slice[i]
+	return sql.NullString{String: slice[i], Valid: true}
+}
+func toNullInt(slice []int, i int) sql.NullInt64 {
+	if slice == nil || len(slice) <= i {
+		return sql.NullInt64{}
+	}
+	return sql.NullInt64{Int64: int64(slice[i]), Valid: true}
+}
+func toNullFloat(slice []float64, i int) sql.NullFloat64 {
+	if slice == nil || len(slice) <= i {
+		return sql.NullFloat64{}
+	}
+	return sql.NullFloat64{Float64: slice[i], Valid: true}
 }
 
-func toNullableInt(slice []int, i int) int {
-	if slice == nil || len(slice) <= i {
-		return 0
-	}
-	return slice[i]
-}
-
+// -- BULK INSERT FUNCTION -- //
 func InsertGameResult(db *sql.DB, gameId string, gamepk int, jobId string, gameYear int, result models.GameResult) error {
 	pa := result.PAResult
+	numPitches := len(pa.PitcherId)
+	batchSize := 100
 
-	// Ensure all slices in PlateAppearanceResult are of the same length
-	numPitches := len(pa.PitcherId) // Use one of the slices to determine the number of pitches
-	for i := 0; i < numPitches; i++ {
-		_, err := db.Exec(`
-            INSERT INTO game_result (
-                game_id, game_year,
-                at_bat_number, inning, inning_topbot,
-                outs, on1B, on2B, on3B,
-                away_score, home_score,
-                pitcherid, pitcher_fullname, pitcher_game_year,
-                batterid, batter_fullname, batter_game_year,
-                batter_stands, pitcher_throws,
-                strikes, balls, pitch_count,
-                pitch_type, plate_x, plate_z, zone,
-                velocity, is_strike, is_swing, is_contact,
-                event_type, exit_velocity, launch_angle, spray_angle,
-                created_at, jobId, gamepk
-            ) VALUES (
-                $1, $2, $3, $4, $5,
-                $6, $7, $8, $9,
-                $10, $11,
-                $12, $13, $14,
-                $15, $16, $17,
-                $18, $19,
-                $20, $21, $22,
-                $23, $24, $25, $26,
-                $27, $28, $29, $30,
-                $31, $32, $33, $34,
-                $35, $36, $37
-            )
-        `,
-			gameId, gameYear,
-			pa.AtBatNumber[i], pa.Inning[i], pa.InningTopBot[i],
-			pa.Outs[i], pa.On1b[i], pa.On2b[i], pa.On3b[i],
-			pa.AwayScore[i], pa.HomeScore[i],
-			pa.PitcherId[i], toNullableString(pa.PitcherFullName, i), toNullableInt(pa.PitcherGameYear, i),
-			pa.BatterId[i], toNullableString(pa.BatterFullName, i), toNullableInt(pa.BatterGameYear, i),
-			toNullableString(pa.BatterStands, i), toNullableString(pa.PitcherThrows, i),
-			pa.Strikes[i], pa.Balls[i], pa.PitchCount[i],
-			toNullableString(pa.PitchType, i), pa.PlateX[i], pa.PlateZ[i], pa.Zone[i],
-			pa.Velocity[i], pa.IsStrike[i], pa.IsSwing[i], toNullableString(pa.IsContact, i),
-			toNullableString(pa.EventType, i), sql.NullFloat64{}, sql.NullFloat64{}, sql.NullFloat64{},
-			time.Now(), jobId, gamepk,
-		)
-
+	tx, err := db.Begin()
+	if err != nil {
+		return fmt.Errorf("could not start transaction: %w", err)
+	}
+	defer func() {
 		if err != nil {
-			return fmt.Errorf("insert failed for gamePk %d: %w", result.GamePk, err)
+			_ = tx.Rollback()
+		}
+	}()
+
+	columns := []string{
+		"game_id", "game_year",
+		"at_bat_number", "inning", "inning_topbot",
+		"outs", "on1B", "on2B", "on3B",
+		"away_score", "home_score",
+		"pitcherid", "pitcher_fullname", "pitcher_game_year",
+		"batterid", "batter_fullname", "batter_game_year",
+		"batter_stands", "pitcher_throws",
+		"strikes", "balls", "pitch_count",
+		"pitch_type", "plate_x", "plate_z", "zone",
+		"velocity", "is_strike", "is_swing", "is_contact",
+		"event_type", "exit_velocity", "launch_angle", "spray_angle",
+		"created_at", "jobId", "gamepk",
+	}
+	placeholdersPerRow := len(columns)
+	totalBatches := (numPitches + batchSize - 1) / batchSize
+
+	for b := 0; b < totalBatches; b++ {
+		start := b * batchSize
+		end := start + batchSize
+		if end > numPitches {
+			end = numPitches
 		}
 
-		fmt.Printf("✅ Inserted pitch %d for AtBatNumber: %d\n", i+1, pa.AtBatNumber[i])
+		var valueStrings []string
+		var args []interface{}
+		argIdx := 1
+
+		for i := start; i < end; i++ {
+			valueStrings = append(valueStrings, "("+makePlaceholders(placeholdersPerRow, argIdx)+")")
+			argIdx += placeholdersPerRow
+
+			args = append(args,
+				gameId, gameYear,
+				pa.AtBatNumber[i], pa.Inning[i], pa.InningTopBot[i],
+				pa.Outs[i], pa.On1b[i], pa.On2b[i], pa.On3b[i],
+				pa.AwayScore[i], pa.HomeScore[i],
+				pa.PitcherId[i], toNullString(pa.PitcherFullName, i), toNullInt(pa.PitcherGameYear, i),
+				pa.BatterId[i], toNullString(pa.BatterFullName, i), toNullInt(pa.BatterGameYear, i),
+				toNullString(pa.BatterStands, i), toNullString(pa.PitcherThrows, i),
+				pa.Strikes[i], pa.Balls[i], pa.PitchCount[i],
+				toNullString(pa.PitchType, i), pa.PlateX[i], pa.PlateZ[i], pa.Zone[i],
+				pa.Velocity[i], pa.IsStrike[i], pa.IsSwing[i], toNullString(pa.IsContact, i),
+				toNullString(pa.EventType, i),
+				toNullFloat(pa.ExitVelocity, i), toNullFloat(pa.LaunchAngle, i), toNullFloat(pa.SprayAngle, i),
+				time.Now(), jobId, gamepk,
+			)
+		}
+
+		sqlStr := fmt.Sprintf(
+			"INSERT INTO game_result (%s) VALUES %s",
+			strings.Join(columns, ", "),
+			strings.Join(valueStrings, ","),
+		)
+
+		_, err := tx.Exec(sqlStr, args...)
+		if err != nil {
+			tx.Rollback()
+			return fmt.Errorf("batch insert failed (rows %d-%d): %w", start, end-1, err)
+		}
 	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit failed: %w", err)
+	}
+
+	fmt.Printf("✅ Inserted %d pitches for gamePk %d (batched)\n", numPitches, gamepk)
 	return nil
+}
+
+// -- Placeholder generator -- //
+func makePlaceholders(n, offset int) string {
+	vals := make([]string, n)
+	for i := 0; i < n; i++ {
+		vals[i] = fmt.Sprintf("$%d", offset+i)
+	}
+	return strings.Join(vals, ",")
 }
