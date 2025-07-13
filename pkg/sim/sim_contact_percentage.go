@@ -18,7 +18,7 @@ func SimulateContactPercentage(player []models.BatterContactPercentage, league [
 	// Player-level check
 	for _, each := range player {
 		if each.Stand == stand && each.PThrows == pThrows && each.PitchType == pitchType && each.Zone == zoneNum {
-			if each.TotalSwings >= 15 {
+			if each.TotalSwings >= 5 {
 				player_contact_prob = []float64{each.PctSwingingStrike, each.PctFoul, each.PctBallInPlay}
 				// fmt.Println("✅ Using player-level data")
 				// fmt.Println(player_contact_prob)
