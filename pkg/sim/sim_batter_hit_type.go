@@ -61,6 +61,7 @@ func SimulateBatterHitType(in []models.BatterHitType, stand, pThrows, pitchType 
 	abbrMap := map[string]string{
 		"AZ":  "ARI",
 		"ATH": "OAK",
+		// "NL":  "NL", // All star game
 		// etc
 	}
 	if val, ok := abbrMap[teamAbbr]; ok {

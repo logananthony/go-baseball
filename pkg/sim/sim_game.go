@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/logananthony/go-baseball/pkg/fetcher"
@@ -22,15 +23,9 @@ func SimulateGame(
 	homeBullpen *models.BullpenOrder,
 	awayBullpen *models.BullpenOrder,
 	bullpenRoleProbs []models.BullpenRoleProb,
-	gameData models.GameData, // for ids
-) {
-
-	// fmt.Printf("simData.PlayerInfo count: %d\n", len(simData.PlayerInfo))
-	// fmt.Printf("simData.BatterSwing count: %d\n", len(simData.BatterSwing))
-	// fmt.Printf("simData.BatterContact count: %d\n", len(simData.BatterContact))
-	// fmt.Printf("simData.BatterHitType count: %d\n", len(simData.BatterHitType))
-	// fmt.Printf("simData.LeagueContact count: %d\n", len(simData.LeagueContact))
-	// Add any others that are relevant for your lookups
+	gameData models.GameData,
+	outcomeMode string,
+) (homeScore int, awayScore int, homeTeam string, awayTeam string, homeStartingPitcherName string, awayStartingPitcherName string, gameDate time.Time) {
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -38,17 +33,17 @@ func SimulateGame(
 		}
 	}()
 
-	// db := config.ConnectDB()
-	// defer db.Close()
-
 	gamePk, _ := fetcher.FetchGameDataByGamePk(db, gameData.GamePk)
 
 	first := gamePk[0]
 
+	gameDate = first.GameDate
 	homeStartingPitcher := first.HomePitcherId
 	awayStartingPitcher := first.AwayPitcherId
-	homeTeam := first.HomeTeamAbbr
-	awayTeam := first.AwayTeamAbbr
+	homeStartingPitcherName = first.HomePitcherName
+	awayStartingPitcherName = first.AwayPitcherName
+	homeTeam = first.HomeTeamAbbr
+	awayTeam = first.AwayTeamAbbr
 	season := first.Season
 
 	gameRes := models.GameResult{
@@ -56,25 +51,6 @@ func SimulateGame(
 		GamePk: gameData.GamePk,
 		JobId:  gameData.JobId,
 	}
-
-	// === FIX: Fetch starter pitcher info early and append to simData.PlayerInfo ===
-	// awayStarterInfoSlice, _ := fetcher.FetchPlayerInfo(db, awayStartingPitcher)
-	// homeStarterInfoSlice, _ := fetcher.FetchPlayerInfo(db, homeStartingPitcher)
-	// simData.PlayerInfo = append(simData.PlayerInfo, awayStarterInfoSlice...)
-	// simData.PlayerInfo = append(simData.PlayerInfo, homeStarterInfoSlice...)
-
-	// fmt.Println("Fetching full game lineup data...")
-	// allGameData, _ := fetcher.FetchGameDataByGamePk(db, gameData.GamePk)
-	// fmt.Println("Fetched full game lineup data")
-
-	// for _, entry := range allGameData {
-	// 	switch entry.Team {
-	// 	case "home":
-	// 		homeLineup = append(homeLineup, entry)
-	// 	case "away":
-	// 		awayLineup = append(awayLineup, entry)
-	// 	}
-	// }
 
 	homePitcherLineup := [][]int{
 		{homeStartingPitcher, season},
@@ -109,8 +85,8 @@ func SimulateGame(
 	var awayPitcherGameYear int
 
 	inning := 1
-	awayScore := 0
-	homeScore := 0
+	awayScore = 0
+	homeScore = 0
 	awayBatterNumber := 0
 	homeBatterNumber := 0
 	atBatNumber := 0
@@ -142,10 +118,6 @@ func SimulateGame(
 		} else {
 			pitcherPulledHome = false
 		}
-		// fmt.Printf("✅ Cached %d pitcher substitution probabilities\n", len(pitchingSubProbs))
-		// for _, p := range pitchingSubProbs[:min(3, len(pitchingSubProbs))] {
-		// 	fmt.Printf("Example substitution rule: %+v\n", p)
-		// }
 
 		usedPitchersHome := map[int]bool{}
 
@@ -275,9 +247,11 @@ func SimulateGame(
 		}
 
 		if inning >= 9 && homeScore > awayScore {
-			postGameResults([]models.GameResult{gameRes}, season, db)
+			if outcomeMode == "pbp" {
+				postGameResults([]models.GameResult{gameRes}, season, db)
+			}
 			fmt.Println("Home team wins:", homeScore, "-", awayScore)
-			break
+			return homeScore, awayScore, homeTeam, awayTeam, homeStartingPitcherName, awayStartingPitcherName, gameDate
 		}
 
 		// fmt.Println("Bottom Inning:", inning)
@@ -328,15 +302,20 @@ func SimulateGame(
 
 			if inning >= 9 && homeScore > awayScore {
 				fmt.Println("Home team wins (walk-off):", homeScore, "-", awayScore)
-				postGameResults([]models.GameResult{gameRes}, season, db)
+				if outcomeMode == "pbp" {
+					postGameResults([]models.GameResult{gameRes}, season, db)
+				}
+				return homeScore, awayScore, homeTeam, awayTeam, homeStartingPitcherName, awayStartingPitcherName, gameDate
 			}
 		}
 
 		// If 9 or later and not tied, game ends
 		if inning >= 9 && homeScore != awayScore {
 			fmt.Println("Away team wins:", awayScore, "-", homeScore)
-			postGameResults([]models.GameResult{gameRes}, season, db)
-			break
+			if outcomeMode == "pbp" {
+				postGameResults([]models.GameResult{gameRes}, season, db)
+			}
+			return homeScore, awayScore, homeTeam, awayTeam, homeStartingPitcherName, awayStartingPitcherName, gameDate
 		}
 
 		inning++
@@ -545,24 +524,6 @@ func ProcessPlateAppearance(
 	case "out", "strikeout":
 		outs++
 	}
-
-	// -----------------------------------------------------------------
-	// (Optional) extra-base adjustments – uncomment & tune percentages
-	/*
-		if lastEvent == "single" {
-			// runner on 2B scores on single 70 %
-			if baseState[1] && rand.Float64() < 0.70 {
-				baseState[1] = false
-				score++
-			}
-			// runner on 1B advances to 3B 35 %
-			if baseState[0] && rand.Float64() < 0.35 {
-				baseState[0] = false
-				baseState[2] = true
-			}
-		}
-	*/
-	// -----------------------------------------------------------------
 
 	return score, baseState, outs
 }

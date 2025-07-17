@@ -9,11 +9,14 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/logananthony/go-baseball/pkg/models"
+	"github.com/logananthony/go-baseball/pkg/poster"
 	"github.com/logananthony/go-baseball/pkg/sim"
+	"github.com/logananthony/go-baseball/pkg/utils"
 )
 
 func corsMiddleware(next http.Handler) http.Handler {
@@ -118,7 +121,7 @@ func (s *APIServer) queryPropsTable(
 	json.NewEncoder(w).Encode(out)
 }
 
-func runSims(db *sql.DB, data models.GameData, n int) {
+func runSims(db *sql.DB, data models.GameData, n int, outcomeMode string) {
 	simData, homeLineup, awayLineup, pitchingSubProbs, homeBullpen, awayBullpen, bullpenRoleProbs, err := sim.PrepareSimData(db, data)
 	if err != nil {
 		log.Printf("Failed to prepare simulation data: %v", err)
@@ -140,7 +143,7 @@ func runSims(db *sql.DB, data models.GameData, n int) {
 				}
 			}()
 			sim.SimulateGame(
-				db, simData, homeLineup, awayLineup, pitchingSubProbs, homeBullpen, awayBullpen, bullpenRoleProbs, data,
+				db, simData, homeLineup, awayLineup, pitchingSubProbs, homeBullpen, awayBullpen, bullpenRoleProbs, data, outcomeMode,
 			)
 		}()
 	}
@@ -149,9 +152,10 @@ func runSims(db *sql.DB, data models.GameData, n int) {
 
 func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 	type SimRequest struct {
-		UserID string `json:"userId"`
-		GamePk int    `json:"gamePk"`
-		NSims  int    `json:"nSims"`
+		UserID      string `json:"userId"`
+		GamePk      int    `json:"gamePk"`
+		NSims       int    `json:"nSims"`
+		OutcomeMode string `json:"outcomeMode"`
 	}
 
 	var body SimRequest
@@ -188,7 +192,7 @@ func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 	}
 
 	// Start simulation in background
-	go func(jid, uid string, data models.GameData, n int) {
+	go func(jid, uid string, data models.GameData, n int, outcomeMode string) {
 		_, err := s.db.Exec(`UPDATE simulation_jobs SET status = 'running', updated_at = NOW() WHERE id = $1`, jid)
 		if err != nil {
 			log.Printf("Failed to update job %s to running: %v", jid, err)
@@ -212,6 +216,20 @@ func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 		sem := make(chan struct{}, maxConcurrentSims)
 		var wg sync.WaitGroup
 
+		type SimOutcome struct {
+			HomeScore int
+			AwayScore int
+		}
+
+		var (
+			homeTeam, awayTeam, homePitcherName, awayPitcherName string
+			gameDate                                             time.Time
+			metaOnce                                             sync.Once
+		)
+
+		outcomes := make([]SimOutcome, 0, n) // <-- collect all outputs
+		var mu sync.Mutex
+
 		for i := 0; i < n; i++ {
 			wg.Add(1)
 			go func() {
@@ -223,22 +241,151 @@ func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 						log.Printf("SimulateGame panic: %v", r)
 					}
 				}()
-
-				sim.SimulateGame(
-					s.db, simData, homeLineup, awayLineup, pitchingSubProbs, homeBullpen, awayBullpen, bullpenRoleProbs, data,
+				h, a, ht, at, hpn, apn, gd := sim.SimulateGame(
+					s.db, simData, homeLineup, awayLineup, pitchingSubProbs, homeBullpen, awayBullpen, bullpenRoleProbs, data, outcomeMode,
 				)
+				metaOnce.Do(func() {
+					homeTeam = ht
+					awayTeam = at
+					homePitcherName = hpn
+					awayPitcherName = apn
+					gameDate = gd
+				})
+				mu.Lock()
+				outcomes = append(outcomes, SimOutcome{HomeScore: h, AwayScore: a})
+				mu.Unlock()
 			}()
 		}
 		wg.Wait()
 
+		// ---- AGGREGATION ----
+		agg := models.GameResultAggCore{
+			GamePk:          int64(data.GamePk),
+			HomeTeamAbbr:    homeTeam,
+			AwayTeamAbbr:    awayTeam,
+			HomePitcherName: homePitcherName,
+			AwayPitcherName: awayPitcherName,
+			GameDate:        gameDate,
+		}
+
+		nf := float64(len(outcomes)) // This declares a NEW float64 variable n
+		if nf == 0 {
+			// handle zero sims
+			return
+		}
+
+		// Slices to help compute means/stddev
+		// Slices to help compute means/stddev
+		var (
+			totals, runDiffs, homeScores, awayScores []float64
+		)
+
+		over := func(threshold float64, vals []float64) float64 {
+			cnt := 0
+			for _, v := range vals {
+				if v > threshold {
+					cnt++
+				}
+			}
+			return float64(cnt) / float64(len(vals))
+		}
+
+		under := func(threshold float64, vals []float64) float64 {
+			cnt := 0
+			for _, v := range vals {
+				if v < threshold {
+					cnt++
+				}
+			}
+			return float64(cnt) / float64(len(vals))
+		}
+
+		for _, o := range outcomes {
+			t := float64(o.HomeScore + o.AwayScore)
+			totals = append(totals, t)
+			runDiff := float64(o.HomeScore - o.AwayScore)
+			runDiffs = append(runDiffs, runDiff)
+			homeScores = append(homeScores, float64(o.HomeScore))
+			awayScores = append(awayScores, float64(o.AwayScore))
+		}
+
+		for _, t := range totals {
+			if t > 25 {
+				log.Printf("Skipping aggregation for gamePk %d: total runs outlier (%.1f)", data.GamePk, t)
+				return // Exit early, do not aggregate or insert this result
+			}
+		}
+
+		// Totals - full game
+		agg.TotalOver15 = over(1.5, totals)
+		agg.TotalOver25 = over(2.5, totals)
+		agg.TotalOver35 = over(3.5, totals)
+		agg.TotalOver45 = over(4.5, totals)
+		agg.TotalOver55 = over(5.5, totals)
+		agg.TotalOver65 = over(6.5, totals)
+		agg.TotalOver75 = over(7.5, totals)
+		agg.TotalOver85 = over(8.5, totals)
+		agg.TotalOver95 = over(9.5, totals)
+		agg.TotalOver105 = over(10.5, totals)
+		agg.TotalOver115 = over(11.5, totals)
+		agg.TotalOver125 = over(12.5, totals)
+
+		// Team totals (Home)
+		agg.HomeTotalOver05 = over(0.5, homeScores)
+		agg.HomeTotalOver15 = over(1.5, homeScores)
+		agg.HomeTotalOver25 = over(2.5, homeScores)
+		agg.HomeTotalOver35 = over(3.5, homeScores)
+		agg.HomeTotalOver45 = over(4.5, homeScores)
+		agg.HomeTotalOver55 = over(5.5, homeScores)
+		agg.HomeTotalOver65 = over(6.5, homeScores)
+		// Team totals (Away)
+		agg.AwayTotalOver05 = over(0.5, awayScores)
+		agg.AwayTotalOver15 = over(1.5, awayScores)
+		agg.AwayTotalOver25 = over(2.5, awayScores)
+		agg.AwayTotalOver35 = over(3.5, awayScores)
+		agg.AwayTotalOver45 = over(4.5, awayScores)
+		agg.AwayTotalOver55 = over(5.5, awayScores)
+		agg.AwayTotalOver65 = over(6.5, awayScores)
+
+		// Spreads
+		agg.SpreadMinus55 = over(5.5, runDiffs)
+		agg.SpreadMinus45 = over(4.5, runDiffs)
+		agg.SpreadMinus35 = over(3.5, runDiffs)
+		agg.SpreadMinus25 = over(2.5, runDiffs)
+		agg.SpreadMinus15 = over(1.5, runDiffs)
+
+		agg.SpreadPlus15 = under(-1.5, runDiffs)
+		agg.SpreadPlus25 = under(-2.5, runDiffs)
+		agg.SpreadPlus35 = under(-3.5, runDiffs)
+		agg.SpreadPlus45 = under(-4.5, runDiffs)
+		agg.SpreadPlus55 = under(-5.5, runDiffs)
+
+		// Moneyline
+		agg.MoneylineHomeWin = over(0, runDiffs)
+		agg.MoneylineAwayWin = under(0, runDiffs)
+
+		// Mean/stddev
+		agg.StdTotalRuns = utils.Stddev(totals)
+		agg.StdHomeScore = utils.Stddev(homeScores)
+		agg.StdAwayScore = utils.Stddev(awayScores)
+		agg.StdSpread = utils.Stddev(runDiffs)
+
+		// Moneyline variance
+		agg.MlVar = agg.MoneylineHomeWin * (1 - agg.MoneylineHomeWin)
+
+		// Insert/upsert aggregate to DB
+		if err := poster.InsertGameResultAggCore(s.db, agg); err != nil {
+			log.Printf("Insert agg result failed: %v", err)
+		}
+
 		_, err = s.db.Exec(`
-    UPDATE simulation_jobs
-    SET status = 'completed', result = $1, updated_at = NOW()
-    WHERE id = $2`, "Simulations complete", jid)
+			UPDATE simulation_jobs
+			SET status = 'completed', result = $1, updated_at = NOW()
+			WHERE id = $2`, "Simulations complete", jid)
 		if err != nil {
 			log.Printf("Failed to update job %s to completed: %v", jid, err)
 		}
-	}(jobID, body.UserID, gameData, body.NSims)
+	}(jobID, body.UserID, gameData, body.NSims, body.OutcomeMode)
 
 	// Respond immediately with job ID
 	w.Header().Set("Content-Type", "application/json")
