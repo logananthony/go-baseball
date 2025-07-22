@@ -1,7 +1,6 @@
 package sim
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/logananthony/go-baseball/pkg/models"
@@ -33,7 +32,7 @@ func SimulatePitchLocationVelo(player []models.PitcherCovarianceMean, league []m
 		// fmt.Printf("  Player Entry: %+v\n", each)
 		if each.CountState == count_state && each.PitchType == pitch_type && each.Stand == stand {
 			// fmt.Println("  Match found in player data.")
-			if each.Count >= 1 {
+			if each.Count >= 5 {
 				// fmt.Println("  Player data has sufficient count.")
 				player_mean_mat = append(player_mean_mat, each.MeanPlateX, each.MeanPlateZ, each.MeanVelo)
 
@@ -44,7 +43,17 @@ func SimulatePitchLocationVelo(player []models.PitcherCovarianceMean, league []m
 				})
 				break
 			} else {
-				fmt.Println("  Player data does not have sufficient count.")
+				// fmt.Println("  Player data does not have sufficient count.")
+			}
+		}
+	}
+
+	if player_cov_mat != nil {
+		shrink := 0.85
+		for i := 0; i < 2; i++ {
+			for j := 0; j < 2; j++ {
+				v := player_cov_mat.At(i, j)
+				player_cov_mat.SetSym(i, j, v*shrink)
 			}
 		}
 	}

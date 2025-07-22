@@ -309,11 +309,22 @@ func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 			awayScores = append(awayScores, float64(o.AwayScore))
 		}
 
-		for _, t := range totals {
-			if t > 25 {
-				log.Printf("Skipping aggregation for gamePk %d: total runs outlier (%.1f)", data.GamePk, t)
-				return // Exit early, do not aggregate or insert this result
+		// Filter out all sims with total runs > 25
+		validTotals := []float64{}
+		validRunDiffs := []float64{}
+		validHomeScores := []float64{}
+		validAwayScores := []float64{}
+		for i, t := range totals {
+			if t <= 25 {
+				validTotals = append(validTotals, t)
+				validRunDiffs = append(validRunDiffs, runDiffs[i])
+				validHomeScores = append(validHomeScores, homeScores[i])
+				validAwayScores = append(validAwayScores, awayScores[i])
 			}
+		}
+		if len(validTotals) == 0 {
+			log.Printf("All sims for gamePk %d were outliers (total runs > 25), skipping aggregation.", data.GamePk)
+			return
 		}
 
 		// Totals - full game
