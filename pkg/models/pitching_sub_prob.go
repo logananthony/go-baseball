@@ -1,9 +1,10 @@
 package models
 
 type PitchingSubstitutionProb struct {
-	Inning           int
-	RunsScoredGame   int
-	RunsScoredInning int
-	Role             int
-	PullProbability  float64
+	PitcherRole string
+	// TeamDeficit  int
+	PitchBin            string
+	NumPitchers         int
+	PctOfRole           float64
+	CumulativePctOfRole float64
 }

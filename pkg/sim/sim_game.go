@@ -99,104 +99,22 @@ func SimulateGame(
 
 	simData.HomeTeam = homeTeam
 
+	homePitchCount := 0
+	awayPitchCount := 0
+	var pitcherPulledHome bool
+	var pitcherPulledAway bool
+
 	for {
 
 		topOuts := 0
 		botOuts := 0
 		awayBaseState := []bool{false, false, false, false}
 		homeBaseState := []bool{false, false, false, false}
-		priorAwayScore := awayScore
-		priorHomeScore := homeScore
+		// priorAwayScore := awayScore
+		// priorHomeScore := homeScore
 
-		inningRunsHome := awayScore - priorAwayScore
-		pullProbHome := utils.GetPullProbability(pitchingSubProbs, inning, awayScore, inningRunsHome)
-
-		var pitcherPulledHome bool
-
-		if pullProbHome != nil {
-			pitcherPulledHome = utils.IsSuccess(pullProbHome)
-		} else {
-			pitcherPulledHome = false
-		}
-
-		usedPitchersHome := map[int]bool{}
-
-		if pullProbHome != nil && pitcherPulledHome {
-			if len(homePitcherLineup) > 0 {
-				homePitcherLineup = utils.FilterSliceSlices(homePitcherLineup, homePitcher)
-				if len(homePitcherLineup) > 0 {
-					// homePitcherChosenIndex := rand.Intn(len(homePitcherLineup))
-					// homePitcher = homePitcherLineup[homePitcherChosenIndex][0]
-					// homePitcherGameYear = homePitcherLineup[homePitcherChosenIndex][1]
-					runDiff := awayScore - homeScore // for homePitcher (home is pitching)
-					runnersOn := utils.CountRunners(awayBaseState)
-
-					selected := utils.SelectBullpenPitcherLineup(
-						homePitcherLineup,
-						bullpenRoleProbs,
-						inning, runDiff, runnersOn, usedPitchersHome,
-					)
-
-					if selected != nil {
-						homePitcher = selected[0]
-						homePitcherGameYear = selected[1]
-						usedPitchersHome[homePitcher] = true
-					} else {
-						// fmt.Println("No eligible pitchers left for inning", inning)
-					}
-
-				} else {
-					// fmt.Println("Home pitcher lineup is empty after filtering, skipping pitcher substitution.")
-				}
-			} else {
-				// fmt.Println("Home pitcher lineup is empty, skipping pitcher substitution.")
-			}
-		}
-
-		inningRunsAway := homeScore - priorHomeScore
-		pullProbAway := utils.GetPullProbability(pitchingSubProbs, inning, homeScore, inningRunsAway)
-
-		var pitcherPulledAway bool
-
-		if pullProbAway != nil {
-			pitcherPulledAway = utils.IsSuccess(pullProbAway)
-		} else {
-			pitcherPulledAway = false
-		}
-
-		usedPitchersAway := map[int]bool{}
-
-		if pullProbAway != nil && pitcherPulledAway {
-			if len(awayPitcherLineup) > 0 {
-				awayPitcherLineup = utils.FilterSliceSlices(awayPitcherLineup, awayPitcher)
-				if len(awayPitcherLineup) > 0 { // Ensure the lineup is not empty after filtering
-					// awayPitcherChosenIndex := rand.Intn(len(awayPitcherLineup))
-					// awayPitcher = awayPitcherLineup[awayPitcherChosenIndex][0]
-					// awayPitcherGameYear = awayPitcherLineup[awayPitcherChosenIndex][1]
-					runDiff := homeScore - awayScore // for awayPitcher (away is pitching)
-					runnersOn := utils.CountRunners(homeBaseState)
-
-					selected := utils.SelectBullpenPitcherLineup(
-						awayPitcherLineup,
-						bullpenRoleProbs,
-						inning, runDiff, runnersOn, usedPitchersAway,
-					)
-					if selected != nil {
-						awayPitcher = selected[0]
-						awayPitcherGameYear = selected[1]
-						usedPitchersAway[awayPitcher] = true
-					} else {
-						// fmt.Println("No eligible pitchers left for inning", inning)
-					}
-				} else {
-					// fmt.Println("Away pitcher lineup is empty after filtering, skipping pitcher substitution.")
-				}
-			} else {
-				// fmt.Println("Away pitcher lineup is empty, skipping pitcher substitution.")
-			}
-		}
-
-		// fmt.Println("Top Inning:", inning)
+		// inningRunsHome := awayScore - priorAwayScore
+		// inningRunsAway := homeScore - priorHomeScore
 
 		for topOuts < 3 {
 			awayBatterNumber = awayBatterNumber % 9
@@ -222,28 +140,101 @@ func SimulateGame(
 
 			atBatNumber++
 
-			// ────────────────────────────────────────────────────────────────────────
-
-			// fmt.Println("Batter #:", awayBatterNumber,
-			// 	"| Pitcher :", homePitcher,
-			// 	"| Event:", awayPaResult[0].EventType[len(awayPaResult[0].EventType)-1],
-			// 	// "| EV:", awayPaResult[0].ExitVelocity[len(awayPaResult[0].ExitVelocity)-1],
-			// 	// "| LA:", awayPaResult[0].LaunchAngle[len(awayPaResult[0].LaunchAngle)-1],
-			// 	// "| SA:", awayPaResult[0].SprayAngle[len(awayPaResult[0].SprayAngle)-1],
-			// 	"| Base State:", awayBaseState[0], awayBaseState[1], awayBaseState[2],
-			// 	"| Score:", awayScore, "-", homeScore)
-
-			awayScore, awayBaseState, topOuts = ProcessPlateAppearance(
-				awayPaResult, awayScore, awayBaseState, topOuts,
+			// fmt.Println("Home Pitch Count:", homePitchCount)
+			awayScore, awayBaseState, topOuts, homePitchCount = ProcessPlateAppearance(
+				awayPaResult, awayScore, awayBaseState, topOuts, homePitchCount,
 			)
 
 			for _, paResult := range awayPaResult {
 				AppendPlateAppearanceTopResult(paResult, awayScore, homeScore, atBatNumber, inning, topOuts, awayBaseState)
 				AppendGameResult(&gameRes, paResult)
 			}
-			// spew.Dump(gameRes.PAResult)
+
+			usedPitchersHome := map[int]bool{}
+
+			if pitcherPulledHome {
+				if len(homePitcherLineup) > 0 {
+					homePitcherLineup = utils.FilterSliceSlices(homePitcherLineup, homePitcher)
+					if len(homePitcherLineup) > 0 {
+						runDiff := awayScore - homeScore // for homePitcher (home is pitching)
+						runnersOn := utils.CountRunners(awayBaseState)
+
+						selected := utils.SelectBullpenPitcherLineup(
+							homePitcherLineup,
+							bullpenRoleProbs,
+							inning,
+							runDiff,
+							runnersOn,
+							usedPitchersHome,
+						)
+						// fmt.Println("pitcherPulledHome:", pitcherPulledHome)
+						// fmt.Println("homePitcherLineup:", homePitcherLineup)
+						// fmt.Println("bullpenRoleProbs:", bullpenRoleProbs)
+						// fmt.Println("inning:", inning)
+						// fmt.Println("runDiff:", runDiff)
+						// fmt.Println("runnersOn:", runnersOn)
+						// fmt.Println("usedPitchersHome:", usedPitchersHome)
+						// fmt.Println("Selected Pitcher: ", selected)
+
+						if selected != nil {
+							homePitcher = selected[0]
+							homePitcherGameYear = selected[1]
+							usedPitchersHome[homePitcher] = true
+							// fmt.Printf("Home Pitch Count Before: %d", homePitchCount)
+							homePitchCount = 0
+							// fmt.Printf("Home Pitch Count After: %d", homePitchCount)
+						} else {
+							// fmt.Println("No eligible pitchers left for inning", inning)
+						}
+
+					} else {
+						// fmt.Println("Home pitcher lineup is empty after filtering, skipping pitcher substitution.")
+					}
+				} else {
+					// fmt.Println("Home pitcher lineup is empty, skipping pitcher substitution.")
+				}
+			}
+			homeTeamDeficit := homeScore - awayScore
+			// fmt.Println("Home Team Deficit: %d", homeTeamDeficit)
+
+			homePitchBin := utils.PitchCountToBin(homePitchCount)
+			// fmt.Println("Home Pitch Count:", homePitchCount)
+			// fmt.Println("Home Pitch Bin:", homePitchBin)
+
+			var pitcherPulledHomeProb float64
+
+			if homePitcher == homeStartingPitcher {
+				pitcherPulledHomeProb, _ = utils.FilterPitcherExitDistributions(
+					pitchingSubProbs,
+					"starter",
+					homeTeamDeficit,
+					homePitchBin,
+				)
+				// fmt.Printf("pitchingSubProbs: %+v\n", pitchingSubProbs)
+				// fmt.Printf("role: %s\n", "starter")
+				// fmt.Printf("homeTeamDeficit: %v\n", homeTeamDeficit)
+				// fmt.Printf("homePitchBin: %v\n", homePitchBin)
+				// fmt.Printf("pitcherPulledHomeProb: %v\n", pitcherPulledHomeProb)
+			} else {
+				pitcherPulledHomeProb, _ = utils.FilterPitcherExitDistributions(
+					pitchingSubProbs,
+					"relief",
+					homeTeamDeficit,
+					homePitchBin,
+				)
+			}
+
+			if pitcherPulledHomeProb != 0.0 {
+
+				// fmt.Printf("pitcherPulledHomeProb: %v\n", &pitcherPulledHomeProb)
+				pitcherPulledHome = utils.IsSuccess(&pitcherPulledHomeProb)
+				// fmt.Println("pitcherPulledHome: ", pitcherPulledHome)
+			} else {
+				pitcherPulledHome = false
+			}
 
 			awayBatterNumber++
+
 		}
 
 		if inning >= 9 && homeScore > awayScore {
@@ -253,8 +244,6 @@ func SimulateGame(
 			fmt.Println("Home team wins:", homeScore, "-", awayScore)
 			return homeScore, awayScore, homeTeam, awayTeam, homeStartingPitcherName, awayStartingPitcherName, gameDate
 		}
-
-		// fmt.Println("Bottom Inning:", inning)
 
 		for botOuts < 3 {
 			homeBatterNumber = homeBatterNumber % 9
@@ -280,17 +269,8 @@ func SimulateGame(
 
 			atBatNumber++
 
-			// fmt.Println("Batter #:", homeBatterNumber,
-			// 	"| Pitcher :", awayPitcher,
-			// 	"| Event:", homePaResult[0].EventType[len(homePaResult[0].EventType)-1],
-			// 	// "| EV:", homePaResult[0].ExitVelocity[len(homePaResult[0].ExitVelocity)-1],
-			// 	// "| LA:", homePaResult[0].LaunchAngle[len(homePaResult[0].LaunchAngle)-1],
-			// 	// "| SA:", homePaResult[0].SprayAngle[len(homePaResult[0].SprayAngle)-1],
-			// 	"| Base State:", homeBaseState[0], homeBaseState[1], homeBaseState[2],
-			// 	"| Score:", awayScore, "-", homeScore)
-
-			homeScore, homeBaseState, botOuts = ProcessPlateAppearance(
-				homePaResult, homeScore, homeBaseState, botOuts,
+			homeScore, homeBaseState, botOuts, awayPitchCount = ProcessPlateAppearance(
+				homePaResult, homeScore, homeBaseState, botOuts, awayPitchCount,
 			)
 
 			for _, paResult := range homePaResult {
@@ -308,6 +288,175 @@ func SimulateGame(
 				return homeScore, awayScore, homeTeam, awayTeam, homeStartingPitcherName, awayStartingPitcherName, gameDate
 			}
 		}
+
+		usedPitchersAway := map[int]bool{}
+
+		if pitcherPulledAway {
+			if len(awayPitcherLineup) > 0 {
+				awayPitcherLineup = utils.FilterSliceSlices(awayPitcherLineup, awayPitcher)
+				if len(awayPitcherLineup) > 0 {
+					runDiff := homeScore - awayScore // for awayPitcher (away is pitching)
+					runnersOn := utils.CountRunners(homeBaseState)
+
+					selected := utils.SelectBullpenPitcherLineup(
+						awayPitcherLineup,
+						bullpenRoleProbs,
+						inning,
+						runDiff,
+						runnersOn,
+						usedPitchersAway,
+					)
+					// fmt.Println("pitcherPulledAway:", pitcherPulledAway)
+					// fmt.Println("awayPitcherLineup:", awayPitcherLineup)
+					// fmt.Println("bullpenRoleProbs:", bullpenRoleProbs)
+					// fmt.Println("inning:", inning)
+					// fmt.Println("runDiff:", runDiff)
+					// fmt.Println("runnersOn:", runnersOn)
+					// fmt.Println("usedPitchersAway:", usedPitchersAway)
+					// fmt.Println("Selected Pitcher: ", selected)
+
+					if selected != nil {
+						awayPitcher = selected[0]
+						awayPitcherGameYear = selected[1]
+						usedPitchersAway[awayPitcher] = true
+						// fmt.Printf("Away Pitch Count Before: %d", awayPitchCount)
+						awayPitchCount = 0
+						// fmt.Printf("Away Pitch Count After: %d", awayPitchCount)
+					} else {
+						// fmt.Println("No eligible pitchers left for inning", inning)
+					}
+
+				} else {
+					// fmt.Println("Away pitcher lineup is empty after filtering, skipping pitcher substitution.")
+				}
+			} else {
+				// fmt.Println("Away pitcher lineup is empty, skipping pitcher substitution.")
+			}
+		}
+		awayTeamDeficit := awayScore - homeScore
+		// fmt.Println("Away Team Deficit: %d", awayTeamDeficit)
+
+		awayPitchBin := utils.PitchCountToBin(awayPitchCount)
+		// fmt.Println("Away Pitch Count:", awayPitchCount)
+		// fmt.Println("Away Pitch Bin:", awayPitchBin)
+
+		var pitcherPulledAwayProb float64
+
+		if awayPitcher == awayStartingPitcher {
+			pitcherPulledAwayProb, _ = utils.FilterPitcherExitDistributions(
+				pitchingSubProbs,
+				"starter",
+				awayTeamDeficit,
+				awayPitchBin,
+			)
+			// fmt.Printf("pitchingSubProbs: %+v\n", pitchingSubProbs)
+			// fmt.Printf("role: %s\n", "starter")
+			// fmt.Printf("awayTeamDeficit: %v\n", awayTeamDeficit)
+			// fmt.Printf("awayPitchBin: %v\n", awayPitchBin)
+			// fmt.Printf("pitcherPulledAwayProb: %v\n", pitcherPulledAwayProb)
+		} else {
+			pitcherPulledAwayProb, _ = utils.FilterPitcherExitDistributions(
+				pitchingSubProbs,
+				"relief",
+				awayTeamDeficit,
+				awayPitchBin,
+			)
+		}
+
+		if pitcherPulledAwayProb != 0.0 {
+
+			// fmt.Printf("pitcherPulledAwayProb: %v\n", &pitcherPulledAwayProb)
+			pitcherPulledAway = utils.IsSuccess(&pitcherPulledAwayProb)
+			// fmt.Println("pitcherPulledAway: ", pitcherPulledAway)
+		} else {
+			pitcherPulledAway = false
+		}
+
+		// awayTeamDeficit := awayScore - homeScore
+		// // fmt.Println("Away Team Deficit: %d", awayTeamDeficit)
+
+		// awayPitchBin := utils.PitchCountToBin(awayPitchCount)
+		// // fmt.Println("Away Pitch Count:", awayPitchCount)
+		// // fmt.Println("Away Pitch Bin:", awayPitchBin)
+
+		// var pitcherPulledAwayProb float64
+
+		// if awayPitcher == awayStartingPitcher {
+		// 	pitcherPulledAwayProb, _ = utils.FilterPitcherExitDistributions(
+		// 		pitchingSubProbs,
+		// 		"starter",
+		// 		awayTeamDeficit,
+		// 		awayPitchBin,
+		// 	)
+		// 	// fmt.Printf("pitchingSubProbs: %+v\n", pitchingSubProbs)
+		// 	// fmt.Printf("role: %s\n", "starter")
+		// 	// fmt.Printf("awayTeamDeficit: %v\n", awayTeamDeficit)
+		// 	// fmt.Printf("awayPitchBin: %v\n", awayPitchBin)
+		// 	// fmt.Printf("pitcherPulledAwayProb: %v\n", pitcherPulledAwayProb)
+		// } else {
+		// 	pitcherPulledAwayProb, _ = utils.FilterPitcherExitDistributions(
+		// 		pitchingSubProbs,
+		// 		"relief",
+		// 		awayTeamDeficit,
+		// 		awayPitchBin,
+		// 	)
+		// }
+
+		// var pitcherPulledAway bool
+
+		// if pitcherPulledAwayProb != 0.0 {
+		// 	// fmt.Printf("pitcherPulledAwayProb: %v\n", &pitcherPulledAwayProb)
+		// 	pitcherPulledAway = utils.IsSuccess(&pitcherPulledAwayProb)
+		// 	// fmt.Println("pitcherPulledAway: ", pitcherPulledAway)
+		// } else {
+		// 	pitcherPulledAway = false
+		// }
+
+		// usedPitchersAway := map[int]bool{}
+
+		// if pitcherPulledAway {
+		// 	if len(awayPitcherLineup) > 0 {
+		// 		awayPitcherLineup = utils.FilterSliceSlices(awayPitcherLineup, awayPitcher)
+		// 		if len(awayPitcherLineup) > 0 {
+		// 			runDiff := homeScore - awayScore // for awayPitcher (away is pitching)
+		// 			runnersOn := utils.CountRunners(homeBaseState)
+
+		// 			selected := utils.SelectBullpenPitcherLineup(
+		// 				awayPitcherLineup,
+		// 				bullpenRoleProbs,
+		// 				inning,
+		// 				runDiff,
+		// 				runnersOn,
+		// 				usedPitchersAway,
+		// 			)
+		// 			// fmt.Println("pitcherPulledAway:", pitcherPulledAway)
+		// 			// fmt.Println("awayPitcherLineup:", awayPitcherLineup)
+		// 			// fmt.Println("bullpenRoleProbs:", bullpenRoleProbs)
+		// 			// fmt.Println("inning:", inning)
+		// 			// fmt.Println("runDiff:", runDiff)
+		// 			// fmt.Println("runnersOn:", runnersOn)
+		// 			// fmt.Println("usedPitchersAway:", usedPitchersAway)
+		// 			// fmt.Println("Selected Pitcher: ", selected)
+
+		// 			if selected != nil {
+		// 				awayPitcher = selected[0]
+		// 				awayPitcherGameYear = selected[1]
+		// 				usedPitchersAway[awayPitcher] = true
+		// 				// fmt.Printf("Away Pitch Count Before: %d", awayPitchCount)
+		// 				awayPitchCount = 0
+		// 				// fmt.Printf("Away Pitch Count After: %d", awayPitchCount)
+		// 			} else {
+		// 				// fmt.Println("No eligible pitchers left for inning", inning)
+		// 			}
+
+		// 		} else {
+		// 			// fmt.Println("Away pitcher lineup is empty after filtering, skipping pitcher substitution.")
+		// 		}
+		// 	} else {
+		// 		// fmt.Println("Away pitcher lineup is empty, skipping pitcher substitution.")
+		// 	}
+
+		// }
 
 		// If 9 or later and not tied, game ends
 		if inning >= 9 && homeScore != awayScore {
@@ -483,10 +632,11 @@ func ProcessPlateAppearance(
 	score int,
 	baseState []bool, // must be len==3 now
 	outs int,
-) (int, []bool, int) {
+	gamePitchCount int,
+) (int, []bool, int, int) {
 
 	if len(paResult) == 0 || len(paResult[0].EventType) == 0 {
-		return score, baseState, outs
+		return score, baseState, outs, gamePitchCount
 	}
 	lastEvent := paResult[0].EventType[len(paResult[0].EventType)-1]
 
@@ -524,6 +674,10 @@ func ProcessPlateAppearance(
 	case "out", "strikeout":
 		outs++
 	}
+	// fmt.Println("gamePitchCount: ", gamePitchCount)
+	// fmt.Println("paResult[0].PitchCount[0]: ", paResult[0].PitchCount[len(paResult[0].PitchCount)-1])
+	updatedGamePitchCount := gamePitchCount + paResult[0].PitchCount[len(paResult[0].PitchCount)-1]
+	// fmt.Println("updatedGamePitchCount: ", updatedGamePitchCount)
 
-	return score, baseState, outs
+	return score, baseState, outs, updatedGamePitchCount
 }

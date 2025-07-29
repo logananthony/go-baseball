@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"math/rand"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -23,6 +24,7 @@ func timer(name string) func() {
 }
 
 func main() {
+	rand.Seed(time.Now().UnixNano())
 
 	defer timer("main")()
 	time.Sleep(time.Second * 2)

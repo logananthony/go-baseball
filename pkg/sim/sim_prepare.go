@@ -183,7 +183,9 @@ func PrepareSimData(
 		simData.PlayerInfo = append(simData.PlayerInfo, pitcherInfo...)
 	}
 
-	bullpenRoleProbs, _ := fetcher.FetchBullpenRoleProbs(db, homeTeam, awayTeam, season)
+	bullpenRoleProbs, _ := fetcher.FetchAllBullpenRoleProbs(db)
+
+	// spew.Dump(bullpenRoleProbs)
 
 	return simData, homeLineup, awayLineup, pitchingSubProbs, homeBullpen, awayBullpen, bullpenRoleProbs, nil
 }
