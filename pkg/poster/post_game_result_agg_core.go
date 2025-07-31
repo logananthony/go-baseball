@@ -65,6 +65,8 @@ func InsertGameResultAggCore(db *sql.DB, agg models.GameResultAggCore) error {
 		"std_away_score", "iqr_away_score", "q80_away_score", "away_score_lower95", "away_score_upper95",
 		"ml_var",
 		"std_spread", "iqr_spread", "q80_spread", "spread_lower95", "spread_upper95",
+
+		"avg_total_runs", "avg_home_score", "avg_away_score",
 	}
 
 	values := []interface{}{
@@ -123,6 +125,8 @@ func InsertGameResultAggCore(db *sql.DB, agg models.GameResultAggCore) error {
 		agg.StdAwayScore, agg.IqrAwayScore, agg.Q80AwayScore, agg.AwayScoreLower95, agg.AwayScoreUpper95,
 		agg.MlVar,
 		agg.StdSpread, agg.IqrSpread, agg.Q80Spread, agg.SpreadLower95, agg.SpreadUpper95,
+
+		agg.AvgTotalRuns, agg.AvgHomeScore, agg.AvgAwayScore,
 	}
 
 	placeholders := make([]string, len(values))

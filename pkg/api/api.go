@@ -74,8 +74,7 @@ func (s *APIServer) queryPropsTable(
 	// Pacific-date filter
 	if gd := q.Get("gamedate"); gd != "" {
 		// cast through UTC → PT exactly like /agg-core
-		where = append(where,
-			fmt.Sprintf("(gamedate AT TIME ZONE 'UTC' AT TIME ZONE 'America/Los_Angeles')::date = $%d", argID))
+		where = append(where, fmt.Sprintf("gamedate::date = $%d", argID))
 		args = append(args, gd)
 		argID++
 	}
@@ -150,6 +149,51 @@ func runSims(db *sql.DB, data models.GameData, n int, outcomeMode string) {
 	wg.Wait()
 }
 
+func aggregateEventCounts(eventCounts []int) (prob05, prob15, avg, iqr, q80, lower05, upper05, lower15, upper15 float64) {
+	n := len(eventCounts)
+	if n == 0 {
+		return 0, 0, 0, 0, 0, 0, 0, 0, 0
+	}
+	counts := make([]float64, n)
+	for i, c := range eventCounts {
+		counts[i] = float64(c)
+	}
+	avg = utils.Mean(counts)
+	iqr = utils.QuantileWidth(counts, 0.25, 0.75)
+	q80 = utils.QuantileWidth(counts, 0.10, 0.90)
+
+	num05, num15 := 0, 0
+	for _, c := range eventCounts {
+		if c >= 1 {
+			num05++
+		}
+		if c >= 2 {
+			num15++
+		}
+	}
+	prob05 = float64(num05) / float64(n)
+	prob15 = float64(num15) / float64(n)
+
+	lower05, upper05 = utils.BinomialCI(prob05, n)
+	lower15, upper15 = utils.BinomialCI(prob15, n)
+	return
+}
+
+func getKProp(kCounts []int, threshold int) (prob, lower95, upper95 float64) {
+	n, numOver := len(kCounts), 0
+	if n == 0 {
+		return 0, 0, 0
+	}
+	for _, v := range kCounts {
+		if v >= threshold {
+			numOver++
+		}
+	}
+	prob = float64(numOver) / float64(n)
+	lower95, upper95 = utils.BinomialCI(prob, n)
+	return
+}
+
 func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 	type SimRequest struct {
 		UserID      string `json:"userId"`
@@ -199,13 +243,41 @@ func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 		}
 
 		simData, homeLineup, awayLineup, pitchingSubProbs, homeBullpen, awayBullpen, bullpenRoleProbs, err := sim.PrepareSimData(s.db, data)
+		// ----- Add this block right after getting the lineups -----
+
+		// Build batter metadata (batterID -> name, order, team)
+		batterMeta := map[int64]struct {
+			Name  string
+			Order int
+			Team  string
+		}{}
+		// Build pitcher metadata (pitcherID -> name)
+		pitcherMeta := map[int64]string{}
+
+		// Loop through BOTH lineups (home and away)
+		for _, b := range append(homeLineup, awayLineup...) {
+			// Batter
+			batterMeta[int64(b.PlayerId)] = struct {
+				Name  string
+				Order int
+				Team  string
+			}{
+				Name:  b.PlayerName,
+				Order: b.BattingOrder,
+				Team:  b.TeamAbbreviation,
+			}
+			// Pitchers
+			pitcherMeta[int64(b.HomePitcherId)] = b.HomePitcherName
+			pitcherMeta[int64(b.AwayPitcherId)] = b.AwayPitcherName
+		}
+
 		if err != nil {
 			log.Printf("Failed to prepare simulation data: %v", err)
 			// Mark job as failed and store the error for user feedback:
 			_, updErr := s.db.Exec(`
-        UPDATE simulation_jobs
-        SET status = 'failed', result = $1, updated_at = NOW()
-        WHERE id = $2`, err.Error(), jid)
+				UPDATE simulation_jobs
+				SET status = 'failed', result = $1, updated_at = NOW()
+				WHERE id = $2`, err.Error(), jid)
 			if updErr != nil {
 				log.Printf("Failed to mark job %s as failed: %v", jid, updErr)
 			}
@@ -216,10 +288,20 @@ func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 		sem := make(chan struct{}, maxConcurrentSims)
 		var wg sync.WaitGroup
 
-		type SimOutcome struct {
-			HomeScore int
-			AwayScore int
-		}
+		// type BatterEvent struct {
+		// 	BatterID  int64
+		// 	EventType string
+		// }
+		// type PitcherEvent struct {
+		// 	PitcherID int64
+		// 	EventType string
+		// }
+		// type SimOutcome struct {
+		// 	HomeScore     int
+		// 	AwayScore     int
+		// 	BatterEvents  []BatterEvent
+		// 	PitcherEvents []PitcherEvent
+		// }
 
 		var (
 			homeTeam, awayTeam, homePitcherName, awayPitcherName string
@@ -227,7 +309,7 @@ func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 			metaOnce                                             sync.Once
 		)
 
-		outcomes := make([]SimOutcome, 0, n) // <-- collect all outputs
+		outcomes := make([]models.SimOutcome, 0, n)
 		var mu sync.Mutex
 
 		for i := 0; i < n; i++ {
@@ -241,7 +323,7 @@ func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 						log.Printf("SimulateGame panic: %v", r)
 					}
 				}()
-				h, a, ht, at, hpn, apn, gd := sim.SimulateGame(
+				h, a, ht, at, hpn, apn, gd, batterEvents, pitcherEvents := sim.SimulateGame(
 					s.db, simData, homeLineup, awayLineup, pitchingSubProbs, homeBullpen, awayBullpen, bullpenRoleProbs, data, outcomeMode,
 				)
 				metaOnce.Do(func() {
@@ -252,235 +334,340 @@ func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 					gameDate = gd
 				})
 				mu.Lock()
-				outcomes = append(outcomes, SimOutcome{HomeScore: h, AwayScore: a})
+				outcomes = append(outcomes, models.SimOutcome{
+					HomeScore:     h,
+					AwayScore:     a,
+					BatterEvents:  batterEvents,
+					PitcherEvents: pitcherEvents,
+				})
 				mu.Unlock()
 			}()
 		}
 		wg.Wait()
 
-		// ---- AGGREGATION ----
+		// ========== GAME-LEVEL AGGREGATION ==========
+
+		// --- Helper functions ---
+		gameTotalProb := func(vals []int, threshold int) (float64, float64, float64) {
+			n := len(vals)
+			if n == 0 {
+				return 0, 0, 0
+			}
+			cnt := 0
+			for _, x := range vals {
+				if x > threshold {
+					cnt++
+				}
+			}
+			prob := float64(cnt) / float64(n)
+			lower, upper := utils.BinomialCI(prob, n)
+			return prob, lower, upper
+		}
+		gameTotalProbIncl := func(vals []int, threshold int) (float64, float64, float64) {
+			n := len(vals)
+			if n == 0 {
+				return 0, 0, 0
+			}
+			cnt := 0
+			for _, x := range vals {
+				if x >= threshold {
+					cnt++
+				}
+			}
+			prob := float64(cnt) / float64(n)
+			lower, upper := utils.BinomialCI(prob, n)
+			return prob, lower, upper
+		}
+
+		// --- Build slices ---
+		var (
+			totalRuns  []int
+			homeScores []int
+			awayScores []int
+			spreads    []int // homeScore - awayScore
+		)
+		for _, sim := range outcomes {
+			t := sim.HomeScore + sim.AwayScore
+			totalRuns = append(totalRuns, t)
+			homeScores = append(homeScores, sim.HomeScore)
+			awayScores = append(awayScores, sim.AwayScore)
+			spreads = append(spreads, sim.HomeScore-sim.AwayScore)
+		}
+
+		loc, _ := time.LoadLocation("America/Los_Angeles")
+		gameDatePacific := gameDate.In(loc)
+
 		agg := models.GameResultAggCore{
 			GamePk:          int64(data.GamePk),
 			HomeTeamAbbr:    homeTeam,
 			AwayTeamAbbr:    awayTeam,
 			HomePitcherName: homePitcherName,
 			AwayPitcherName: awayPitcherName,
-			GameDate:        gameDate,
+			GameDate:        gameDatePacific,
 		}
 
-		nf := float64(len(outcomes)) // This declares a NEW float64 variable n
-		if nf == 0 {
-			// handle zero sims
-			return
-		}
+		// Totals (over X.5)
+		agg.TotalOver15, agg.TotalOver15Lower95, agg.TotalOver15Upper95 = gameTotalProb(totalRuns, 1)
+		agg.TotalOver25, agg.TotalOver25Lower95, agg.TotalOver25Upper95 = gameTotalProb(totalRuns, 2)
+		agg.TotalOver35, agg.TotalOver35Lower95, agg.TotalOver35Upper95 = gameTotalProb(totalRuns, 3)
+		agg.TotalOver45, agg.TotalOver45Lower95, agg.TotalOver45Upper95 = gameTotalProb(totalRuns, 4)
+		agg.TotalOver55, agg.TotalOver55Lower95, agg.TotalOver55Upper95 = gameTotalProb(totalRuns, 5)
+		agg.TotalOver65, agg.TotalOver65Lower95, agg.TotalOver65Upper95 = gameTotalProb(totalRuns, 6)
+		agg.TotalOver75, agg.TotalOver75Lower95, agg.TotalOver75Upper95 = gameTotalProb(totalRuns, 7)
+		agg.TotalOver85, agg.TotalOver85Lower95, agg.TotalOver85Upper95 = gameTotalProb(totalRuns, 8)
+		agg.TotalOver95, agg.TotalOver95Lower95, agg.TotalOver95Upper95 = gameTotalProb(totalRuns, 9)
+		agg.TotalOver105, agg.TotalOver105Lower95, agg.TotalOver105Upper95 = gameTotalProb(totalRuns, 10)
+		agg.TotalOver115, agg.TotalOver115Lower95, agg.TotalOver115Upper95 = gameTotalProb(totalRuns, 11)
+		agg.TotalOver125, agg.TotalOver125Lower95, agg.TotalOver125Upper95 = gameTotalProb(totalRuns, 12)
 
-		// Slices to help compute means/stddev
-		// Slices to help compute means/stddev
-		var (
-			totals, runDiffs, homeScores, awayScores []float64
-		)
+		// Home/Away team totals (over X.5)
+		agg.HomeTotalOver05, agg.HomeTotalOver05Lower95, agg.HomeTotalOver05Upper95 = gameTotalProbIncl(homeScores, 1)
+		agg.HomeTotalOver15, agg.HomeTotalOver15Lower95, agg.HomeTotalOver15Upper95 = gameTotalProb(homeScores, 1)
+		agg.HomeTotalOver25, agg.HomeTotalOver25Lower95, agg.HomeTotalOver25Upper95 = gameTotalProb(homeScores, 2)
+		agg.HomeTotalOver35, agg.HomeTotalOver35Lower95, agg.HomeTotalOver35Upper95 = gameTotalProb(homeScores, 3)
+		agg.HomeTotalOver45, agg.HomeTotalOver45Lower95, agg.HomeTotalOver45Upper95 = gameTotalProb(homeScores, 4)
+		agg.HomeTotalOver55, agg.HomeTotalOver55Lower95, agg.HomeTotalOver55Upper95 = gameTotalProb(homeScores, 5)
+		agg.HomeTotalOver65, agg.HomeTotalOver65Lower95, agg.HomeTotalOver65Upper95 = gameTotalProb(homeScores, 6)
 
-		over := func(threshold float64, vals []float64) float64 {
+		agg.AwayTotalOver05, agg.AwayTotalOver05Lower95, agg.AwayTotalOver05Upper95 = gameTotalProbIncl(awayScores, 1)
+		agg.AwayTotalOver15, agg.AwayTotalOver15Lower95, agg.AwayTotalOver15Upper95 = gameTotalProb(awayScores, 1)
+		agg.AwayTotalOver25, agg.AwayTotalOver25Lower95, agg.AwayTotalOver25Upper95 = gameTotalProb(awayScores, 2)
+		agg.AwayTotalOver35, agg.AwayTotalOver35Lower95, agg.AwayTotalOver35Upper95 = gameTotalProb(awayScores, 3)
+		agg.AwayTotalOver45, agg.AwayTotalOver45Lower95, agg.AwayTotalOver45Upper95 = gameTotalProb(awayScores, 4)
+		agg.AwayTotalOver55, agg.AwayTotalOver55Lower95, agg.AwayTotalOver55Upper95 = gameTotalProb(awayScores, 5)
+		agg.AwayTotalOver65, agg.AwayTotalOver65Lower95, agg.AwayTotalOver65Upper95 = gameTotalProb(awayScores, 6)
+
+		// Spread: (home - away) > X.5 (ex: minus_15 = home wins by 2+)
+		spreadProb := func(vals []int, thresh float64) (float64, float64, float64) {
+			n := len(vals)
+			if n == 0 {
+				return 0, 0, 0
+			}
 			cnt := 0
-			for _, v := range vals {
-				if v > threshold {
+			for _, x := range vals {
+				if float64(x) > thresh {
 					cnt++
 				}
 			}
-			return float64(cnt) / float64(len(vals))
+			prob := float64(cnt) / float64(n)
+			lower, upper := utils.BinomialCI(prob, n)
+			return prob, lower, upper
 		}
-
-		under := func(threshold float64, vals []float64) float64 {
-			cnt := 0
-			for _, v := range vals {
-				if v < threshold {
-					cnt++
-				}
-			}
-			return float64(cnt) / float64(len(vals))
-		}
-
-		for _, o := range outcomes {
-			t := float64(o.HomeScore + o.AwayScore)
-			totals = append(totals, t)
-			runDiff := float64(o.HomeScore - o.AwayScore)
-			runDiffs = append(runDiffs, runDiff)
-			homeScores = append(homeScores, float64(o.HomeScore))
-			awayScores = append(awayScores, float64(o.AwayScore))
-		}
-
-		// Filter out all sims with total runs > 25
-		validTotals := []float64{}
-		validRunDiffs := []float64{}
-		validHomeScores := []float64{}
-		validAwayScores := []float64{}
-		for i, t := range totals {
-			if t <= 25 {
-				validTotals = append(validTotals, t)
-				validRunDiffs = append(validRunDiffs, runDiffs[i])
-				validHomeScores = append(validHomeScores, homeScores[i])
-				validAwayScores = append(validAwayScores, awayScores[i])
-			}
-		}
-		if len(validTotals) == 0 {
-			log.Printf("All sims for gamePk %d were outliers (total runs > 25), skipping aggregation.", data.GamePk)
-			return
-		}
-
-		// Totals - full game
-		agg.TotalOver15 = over(1.5, totals)
-		agg.TotalOver25 = over(2.5, totals)
-		agg.TotalOver35 = over(3.5, totals)
-		agg.TotalOver45 = over(4.5, totals)
-		agg.TotalOver55 = over(5.5, totals)
-		agg.TotalOver65 = over(6.5, totals)
-		agg.TotalOver75 = over(7.5, totals)
-		agg.TotalOver85 = over(8.5, totals)
-		agg.TotalOver95 = over(9.5, totals)
-		agg.TotalOver105 = over(10.5, totals)
-		agg.TotalOver115 = over(11.5, totals)
-		agg.TotalOver125 = over(12.5, totals)
-
-		// Team totals (Home)
-		agg.HomeTotalOver05 = over(0.5, homeScores)
-		agg.HomeTotalOver15 = over(1.5, homeScores)
-		agg.HomeTotalOver25 = over(2.5, homeScores)
-		agg.HomeTotalOver35 = over(3.5, homeScores)
-		agg.HomeTotalOver45 = over(4.5, homeScores)
-		agg.HomeTotalOver55 = over(5.5, homeScores)
-		agg.HomeTotalOver65 = over(6.5, homeScores)
-		// Team totals (Away)
-		agg.AwayTotalOver05 = over(0.5, awayScores)
-		agg.AwayTotalOver15 = over(1.5, awayScores)
-		agg.AwayTotalOver25 = over(2.5, awayScores)
-		agg.AwayTotalOver35 = over(3.5, awayScores)
-		agg.AwayTotalOver45 = over(4.5, awayScores)
-		agg.AwayTotalOver55 = over(5.5, awayScores)
-		agg.AwayTotalOver65 = over(6.5, awayScores)
-
-		// Spreads
-		agg.SpreadMinus55 = over(5.5, runDiffs)
-		agg.SpreadMinus45 = over(4.5, runDiffs)
-		agg.SpreadMinus35 = over(3.5, runDiffs)
-		agg.SpreadMinus25 = over(2.5, runDiffs)
-		agg.SpreadMinus15 = over(1.5, runDiffs)
-
-		agg.SpreadPlus15 = under(-1.5, runDiffs)
-		agg.SpreadPlus25 = under(-2.5, runDiffs)
-		agg.SpreadPlus35 = under(-3.5, runDiffs)
-		agg.SpreadPlus45 = under(-4.5, runDiffs)
-		agg.SpreadPlus55 = under(-5.5, runDiffs)
+		agg.SpreadMinus55, agg.SpreadMinus55Lower95, agg.SpreadMinus55Upper95 = spreadProb(spreads, 5.5)
+		agg.SpreadMinus45, agg.SpreadMinus45Lower95, agg.SpreadMinus45Upper95 = spreadProb(spreads, 4.5)
+		agg.SpreadMinus35, agg.SpreadMinus35Lower95, agg.SpreadMinus35Upper95 = spreadProb(spreads, 3.5)
+		agg.SpreadMinus25, agg.SpreadMinus25Lower95, agg.SpreadMinus25Upper95 = spreadProb(spreads, 2.5)
+		agg.SpreadMinus15, agg.SpreadMinus15Lower95, agg.SpreadMinus15Upper95 = spreadProb(spreads, 1.5)
+		agg.SpreadPlus15, agg.SpreadPlus15Lower95, agg.SpreadPlus15Upper95 = spreadProb(spreads, -1.5)
+		agg.SpreadPlus25, agg.SpreadPlus25Lower95, agg.SpreadPlus25Upper95 = spreadProb(spreads, -2.5)
+		agg.SpreadPlus35, agg.SpreadPlus35Lower95, agg.SpreadPlus35Upper95 = spreadProb(spreads, -3.5)
+		agg.SpreadPlus45, agg.SpreadPlus45Lower95, agg.SpreadPlus45Upper95 = spreadProb(spreads, -4.5)
+		agg.SpreadPlus55, agg.SpreadPlus55Lower95, agg.SpreadPlus55Upper95 = spreadProb(spreads, -5.5)
 
 		// Moneyline
-		agg.MoneylineHomeWin = over(0, runDiffs)
-		agg.MoneylineAwayWin = under(0, runDiffs)
+		mlHomeWin := 0
+		for _, s := range spreads {
+			if s > 0 {
+				mlHomeWin++
+			}
+		}
+		agg.MoneylineHomeWin = float64(mlHomeWin) / float64(len(spreads))
+		agg.MlHomeWinLower95, agg.MlHomeWinUpper95 = utils.BinomialCI(agg.MoneylineHomeWin, len(spreads))
 
-		agg.StdTotalRuns = utils.Stddev(totals)
-		agg.IqrTotalRuns = utils.QuantileWidth(totals, 0.25, 0.75)
-		agg.Q80TotalRuns = utils.QuantileWidth(totals, 0.10, 0.90)
+		mlAwayWin := 0
+		for _, s := range spreads {
+			if s < 0 {
+				mlAwayWin++
+			}
+		}
+		agg.MoneylineAwayWin = float64(mlAwayWin) / float64(len(spreads))
 
-		agg.StdHomeScore = utils.Stddev(homeScores)
-		agg.IqrHomeScore = utils.QuantileWidth(homeScores, 0.25, 0.75)
-		agg.Q80HomeScore = utils.QuantileWidth(homeScores, 0.10, 0.90)
-		_, agg.HomeScoreLower95, agg.HomeScoreUpper95 = utils.MeanCI(homeScores)
+		// Quantiles, stdev, etc (for all runs, home, away, spread)
+		countsFloat := func(vals []int) []float64 {
+			out := make([]float64, len(vals))
+			for i, v := range vals {
+				out[i] = float64(v)
+			}
+			return out
+		}
+		agg.StdTotalRuns = utils.Stddev(countsFloat(totalRuns))
+		agg.IqrTotalRuns = utils.QuantileWidth(countsFloat(totalRuns), 0.25, 0.75)
+		agg.Q80TotalRuns = utils.QuantileWidth(countsFloat(totalRuns), 0.10, 0.90)
 
-		agg.StdAwayScore = utils.Stddev(awayScores)
-		agg.IqrAwayScore = utils.QuantileWidth(awayScores, 0.25, 0.75)
-		agg.Q80AwayScore = utils.QuantileWidth(awayScores, 0.10, 0.90)
-		_, agg.AwayScoreLower95, agg.AwayScoreUpper95 = utils.MeanCI(awayScores)
+		agg.StdHomeScore = utils.Stddev(countsFloat(homeScores))
+		agg.IqrHomeScore = utils.QuantileWidth(countsFloat(homeScores), 0.25, 0.75)
+		agg.Q80HomeScore = utils.QuantileWidth(countsFloat(homeScores), 0.10, 0.90)
+		_, agg.HomeScoreLower95, agg.HomeScoreUpper95 = utils.MeanCI(countsFloat(homeScores))
 
-		agg.StdSpread = utils.Stddev(runDiffs)
-		agg.IqrSpread = utils.QuantileWidth(runDiffs, 0.25, 0.75)
-		agg.Q80Spread = utils.QuantileWidth(runDiffs, 0.10, 0.90)
-		_, agg.SpreadLower95, agg.SpreadUpper95 = utils.MeanCI(runDiffs)
+		agg.StdAwayScore = utils.Stddev(countsFloat(awayScores))
+		agg.IqrAwayScore = utils.QuantileWidth(countsFloat(awayScores), 0.25, 0.75)
+		agg.Q80AwayScore = utils.QuantileWidth(countsFloat(awayScores), 0.10, 0.90)
+		_, agg.AwayScoreLower95, agg.AwayScoreUpper95 = utils.MeanCI(countsFloat(awayScores))
 
-		n = len(totals) // integer
+		agg.StdSpread = utils.Stddev(countsFloat(spreads))
+		agg.IqrSpread = utils.QuantileWidth(countsFloat(spreads), 0.25, 0.75)
+		agg.Q80Spread = utils.QuantileWidth(countsFloat(spreads), 0.10, 0.90)
+		_, agg.SpreadLower95, agg.SpreadUpper95 = utils.MeanCI(countsFloat(spreads))
 
-		// --- Game Total Overs ---
-		prob := over(1.5, totals)
-		agg.TotalOver15Lower95, agg.TotalOver15Upper95 = utils.BinomialCI(prob, n)
-		prob = over(2.5, totals)
-		agg.TotalOver25Lower95, agg.TotalOver25Upper95 = utils.BinomialCI(prob, n)
-		prob = over(3.5, totals)
-		agg.TotalOver35Lower95, agg.TotalOver35Upper95 = utils.BinomialCI(prob, n)
-		prob = over(4.5, totals)
-		agg.TotalOver45Lower95, agg.TotalOver45Upper95 = utils.BinomialCI(prob, n)
-		prob = over(5.5, totals)
-		agg.TotalOver55Lower95, agg.TotalOver55Upper95 = utils.BinomialCI(prob, n)
-		prob = over(6.5, totals)
-		agg.TotalOver65Lower95, agg.TotalOver65Upper95 = utils.BinomialCI(prob, n)
-		prob = over(7.5, totals)
-		agg.TotalOver75Lower95, agg.TotalOver75Upper95 = utils.BinomialCI(prob, n)
-		prob = over(8.5, totals)
-		agg.TotalOver85Lower95, agg.TotalOver85Upper95 = utils.BinomialCI(prob, n)
-		prob = over(9.5, totals)
-		agg.TotalOver95Lower95, agg.TotalOver95Upper95 = utils.BinomialCI(prob, n)
-		prob = over(10.5, totals)
-		agg.TotalOver105Lower95, agg.TotalOver105Upper95 = utils.BinomialCI(prob, n)
-		prob = over(11.5, totals)
-		agg.TotalOver115Lower95, agg.TotalOver115Upper95 = utils.BinomialCI(prob, n)
-		prob = over(12.5, totals)
-		agg.TotalOver125Lower95, agg.TotalOver125Upper95 = utils.BinomialCI(prob, n)
+		// --- Averages ---
+		agg.AvgTotalRuns = utils.Mean(countsFloat(totalRuns))
+		agg.AvgHomeScore = utils.Mean(countsFloat(homeScores))
+		agg.AvgAwayScore = utils.Mean(countsFloat(awayScores))
 
-		// --- Home Team Total Overs ---
-		prob = over(0.5, homeScores)
-		agg.HomeTotalOver05Lower95, agg.HomeTotalOver05Upper95 = utils.BinomialCI(prob, n)
-		prob = over(1.5, homeScores)
-		agg.HomeTotalOver15Lower95, agg.HomeTotalOver15Upper95 = utils.BinomialCI(prob, n)
-		prob = over(2.5, homeScores)
-		agg.HomeTotalOver25Lower95, agg.HomeTotalOver25Upper95 = utils.BinomialCI(prob, n)
-		prob = over(3.5, homeScores)
-		agg.HomeTotalOver35Lower95, agg.HomeTotalOver35Upper95 = utils.BinomialCI(prob, n)
-		prob = over(4.5, homeScores)
-		agg.HomeTotalOver45Lower95, agg.HomeTotalOver45Upper95 = utils.BinomialCI(prob, n)
-		prob = over(5.5, homeScores)
-		agg.HomeTotalOver55Lower95, agg.HomeTotalOver55Upper95 = utils.BinomialCI(prob, n)
-		prob = over(6.5, homeScores)
-		agg.HomeTotalOver65Lower95, agg.HomeTotalOver65Upper95 = utils.BinomialCI(prob, n)
+		// --- PLAYER-LEVEL AGGREGATION ---
 
-		// --- Away Team Total Overs ---
-		prob = over(0.5, awayScores)
-		agg.AwayTotalOver05Lower95, agg.AwayTotalOver05Upper95 = utils.BinomialCI(prob, n)
-		prob = over(1.5, awayScores)
-		agg.AwayTotalOver15Lower95, agg.AwayTotalOver15Upper95 = utils.BinomialCI(prob, n)
-		prob = over(2.5, awayScores)
-		agg.AwayTotalOver25Lower95, agg.AwayTotalOver25Upper95 = utils.BinomialCI(prob, n)
-		prob = over(3.5, awayScores)
-		agg.AwayTotalOver35Lower95, agg.AwayTotalOver35Upper95 = utils.BinomialCI(prob, n)
-		prob = over(4.5, awayScores)
-		agg.AwayTotalOver45Lower95, agg.AwayTotalOver45Upper95 = utils.BinomialCI(prob, n)
-		prob = over(5.5, awayScores)
-		agg.AwayTotalOver55Lower95, agg.AwayTotalOver55Upper95 = utils.BinomialCI(prob, n)
-		prob = over(6.5, awayScores)
-		agg.AwayTotalOver65Lower95, agg.AwayTotalOver65Upper95 = utils.BinomialCI(prob, n)
+		batterHitCounts := map[int64][]int{}
+		batterSingleCounts := map[int64][]int{}
+		batterDoubleCounts := map[int64][]int{}
+		batterTripleCounts := map[int64][]int{}
+		batterHomerunCounts := map[int64][]int{}
+		pitcherKCounts := map[int64][]int{}
 
-		// --- Spread Lines (runDiffs = home - away) ---
-		prob = over(5.5, runDiffs)
-		agg.SpreadMinus55Lower95, agg.SpreadMinus55Upper95 = utils.BinomialCI(prob, n)
-		prob = over(4.5, runDiffs)
-		agg.SpreadMinus45Lower95, agg.SpreadMinus45Upper95 = utils.BinomialCI(prob, n)
-		prob = over(3.5, runDiffs)
-		agg.SpreadMinus35Lower95, agg.SpreadMinus35Upper95 = utils.BinomialCI(prob, n)
-		prob = over(2.5, runDiffs)
-		agg.SpreadMinus25Lower95, agg.SpreadMinus25Upper95 = utils.BinomialCI(prob, n)
-		prob = over(1.5, runDiffs)
-		agg.SpreadMinus15Lower95, agg.SpreadMinus15Upper95 = utils.BinomialCI(prob, n)
-		prob = under(-1.5, runDiffs)
-		agg.SpreadPlus15Lower95, agg.SpreadPlus15Upper95 = utils.BinomialCI(prob, n)
-		prob = under(-2.5, runDiffs)
-		agg.SpreadPlus25Lower95, agg.SpreadPlus25Upper95 = utils.BinomialCI(prob, n)
-		prob = under(-3.5, runDiffs)
-		agg.SpreadPlus35Lower95, agg.SpreadPlus35Upper95 = utils.BinomialCI(prob, n)
-		prob = under(-4.5, runDiffs)
-		agg.SpreadPlus45Lower95, agg.SpreadPlus45Upper95 = utils.BinomialCI(prob, n)
-		prob = under(-5.5, runDiffs)
-		agg.SpreadPlus55Lower95, agg.SpreadPlus55Upper95 = utils.BinomialCI(prob, n)
+		// --- Build stat counts per player for each sim ---
+		for _, sim := range outcomes {
+			batterCountMap := map[int64]map[string]int{}
+			for _, e := range sim.BatterEvents {
+				if batterCountMap[e.BatterID] == nil {
+					batterCountMap[e.BatterID] = map[string]int{}
+				}
+				batterCountMap[e.BatterID][e.EventType]++
+				switch e.EventType {
+				case "single", "double", "triple", "home_run":
+					batterCountMap[e.BatterID]["hits"]++
+				}
+			}
+			for batterID, m := range batterCountMap {
+				batterHitCounts[batterID] = append(batterHitCounts[batterID], m["hits"])
+				batterSingleCounts[batterID] = append(batterSingleCounts[batterID], m["single"])
+				batterDoubleCounts[batterID] = append(batterDoubleCounts[batterID], m["double"])
+				batterTripleCounts[batterID] = append(batterTripleCounts[batterID], m["triple"])
+				batterHomerunCounts[batterID] = append(batterHomerunCounts[batterID], m["home_run"])
+			}
 
-		// Moneyline variance
-		agg.MlVar = agg.MoneylineHomeWin * (1 - agg.MoneylineHomeWin)
-		agg.MlHomeWinLower95, agg.MlHomeWinUpper95 = utils.BinomialCI(agg.MoneylineHomeWin, n)
+			pitcherCountMap := map[int64]int{}
+			for _, e := range sim.PitcherEvents {
+				if e.EventType == "strikeout" {
+					pitcherCountMap[e.PitcherID]++
+				}
+			}
+			for pitcherID, kCount := range pitcherCountMap {
+				pitcherKCounts[pitcherID] = append(pitcherKCounts[pitcherID], kCount)
+			}
+		}
 
-		// Insert/upsert aggregate to DB
+		// If you want batter metadata (name, team, etc.), collect them from lineup info here (optional)
+
+		// --- Upsert batter props ---
+		for batterID, hitCounts := range batterHitCounts {
+			// Aggregate ALL batter stats
+			singleCounts := batterSingleCounts[batterID]
+			doubleCounts := batterDoubleCounts[batterID]
+			tripleCounts := batterTripleCounts[batterID]
+			hrCounts := batterHomerunCounts[batterID]
+
+			prob05Hits, prob15Hits, avgHits, iqrHits, q80Hits, lower05Hits, upper05Hits, lower15Hits, upper15Hits := aggregateEventCounts(hitCounts)
+			prob05Singles, prob15Singles, avgSingles, iqrSingles, q80Singles, lower05Singles, upper05Singles, lower15Singles, upper15Singles := aggregateEventCounts(singleCounts)
+			prob05Doubles, prob15Doubles, avgDoubles, iqrDoubles, q80Doubles, lower05Doubles, upper05Doubles, lower15Doubles, upper15Doubles := aggregateEventCounts(doubleCounts)
+			prob05Triples, prob15Triples, avgTriples, iqrTriples, q80Triples, lower05Triples, upper05Triples, lower15Triples, upper15Triples := aggregateEventCounts(tripleCounts)
+			prob05HR, prob15HR, avgHR, iqrHR, q80HR, lower05HR, upper05HR, lower15HR, upper15HR := aggregateEventCounts(hrCounts)
+
+			meta := batterMeta[batterID]
+			bp := models.BatterProps{
+				BatterID:       batterID,
+				GamePk:         int64(data.GamePk),
+				NumSimulations: len(hitCounts),
+				// TODO: Fill these from your player lookup if you have it:
+				BatterName:   meta.Name,  // lookupBatterName(batterID)
+				BattingOrder: meta.Order, // lookupBattingOrder(batterID)
+				Team:         meta.Team,  // lookupTeam(batterID)
+				GameDate:     gameDate,   // set from sim/game context
+
+				// Hits
+				ProbOver05Hits: prob05Hits, ProbOver15Hits: prob15Hits,
+				Over05HitsLower95: lower05Hits, Over05HitsUpper95: upper05Hits,
+				Over15HitsLower95: lower15Hits, Over15HitsUpper95: upper15Hits,
+				AvgHits: avgHits, IqrHits: iqrHits, Q80Hits: q80Hits,
+
+				// Singles
+				ProbOver05Singles: prob05Singles, ProbOver15Singles: prob15Singles,
+				Over05SinglesLower95: lower05Singles, Over05SinglesUpper95: upper05Singles,
+				Over15SinglesLower95: lower15Singles, Over15SinglesUpper95: upper15Singles,
+				AvgSingles: avgSingles, IqrSingles: iqrSingles, Q80Singles: q80Singles,
+
+				// Doubles
+				ProbOver05Doubles: prob05Doubles, ProbOver15Doubles: prob15Doubles,
+				Over05DoublesLower95: lower05Doubles, Over05DoublesUpper95: upper05Doubles,
+				Over15DoublesLower95: lower15Doubles, Over15DoublesUpper95: upper15Doubles,
+				AvgDoubles: avgDoubles, IqrDoubles: iqrDoubles, Q80Doubles: q80Doubles,
+
+				// Triples
+				ProbOver05Triples: prob05Triples, ProbOver15Triples: prob15Triples,
+				Over05TriplesLower95: lower05Triples, Over05TriplesUpper95: upper05Triples,
+				Over15TriplesLower95: lower15Triples, Over15TriplesUpper95: upper15Triples,
+				AvgTriples: avgTriples, IqrTriples: iqrTriples, Q80Triples: q80Triples,
+
+				// Homeruns
+				ProbOver05Homeruns: prob05HR, ProbOver15Homeruns: prob15HR,
+				Over05HomerunsLower95: lower05HR, Over05HomerunsUpper95: upper05HR,
+				Over15HomerunsLower95: lower15HR, Over15HomerunsUpper95: upper15HR,
+				AvgHomeruns: avgHR, IqrHomeruns: iqrHR, Q80Homeruns: q80HR,
+			}
+			_ = poster.InsertBatterProps(s.db, bp)
+		}
+
+		// --- Upsert pitcher props ---
+		for pitcherID, kCounts := range pitcherKCounts {
+			// For each K threshold (2.5, 3.5, ... 12.5), get prob and CIs
+			// over_2_5 means >=3, over_3_5 means >=4, etc
+			prob25K, l25K, u25K := getKProp(kCounts, 3)
+			prob35K, l35K, u35K := getKProp(kCounts, 4)
+			prob45K, l45K, u45K := getKProp(kCounts, 5)
+			prob55K, l55K, u55K := getKProp(kCounts, 6)
+			prob65K, l65K, u65K := getKProp(kCounts, 7)
+			prob75K, l75K, u75K := getKProp(kCounts, 8)
+			prob85K, l85K, u85K := getKProp(kCounts, 9)
+			prob95K, l95K, u95K := getKProp(kCounts, 10)
+			prob105K, l105K, u105K := getKProp(kCounts, 11)
+			prob115K, l115K, u115K := getKProp(kCounts, 12)
+			prob125K, l125K, u125K := getKProp(kCounts, 13)
+
+			countsFloat := make([]float64, len(kCounts))
+			for i, k := range kCounts {
+				countsFloat[i] = float64(k)
+			}
+			avgK := utils.Mean(countsFloat)
+			iqrK := utils.QuantileWidth(countsFloat, 0.25, 0.75)
+			q80K := utils.QuantileWidth(countsFloat, 0.10, 0.90)
+
+			name := pitcherMeta[pitcherID]
+			pp := models.PitcherProps{
+				PitcherID:      pitcherID,
+				GamePk:         int64(data.GamePk),
+				NumSimulations: len(kCounts),
+				PitcherName:    name,
+				GameDate:       gameDate,
+
+				ProbOver25K: prob25K, ProbOver35K: prob35K, ProbOver45K: prob45K,
+				ProbOver55K: prob55K, ProbOver65K: prob65K, ProbOver75K: prob75K,
+				ProbOver85K: prob85K, ProbOver95K: prob95K, ProbOver105K: prob105K,
+				ProbOver115K: prob115K, ProbOver125K: prob125K,
+				Over25KLower95: l25K, Over25KUpper95: u25K,
+				Over35KLower95: l35K, Over35KUpper95: u35K,
+				Over45KLower95: l45K, Over45KUpper95: u45K,
+				Over55KLower95: l55K, Over55KUpper95: u55K,
+				Over65KLower95: l65K, Over65KUpper95: u65K,
+				Over75KLower95: l75K, Over75KUpper95: u75K,
+				Over85KLower95: l85K, Over85KUpper95: u85K,
+				Over95KLower95: l95K, Over95KUpper95: u95K,
+				Over105KLower95: l105K, Over105KUpper95: u105K,
+				Over115KLower95: l115K, Over115KUpper95: u115K,
+				Over125KLower95: l125K, Over125KUpper95: u125K,
+				AvgStrikeouts: avgK, IqrStrikeouts: iqrK, Q80Strikeouts: q80K,
+			}
+			_ = poster.InsertPitcherProps(s.db, pp)
+		}
+
+		// --- UPSERT TO DB ---
 		if err := poster.InsertGameResultAggCore(s.db, agg); err != nil {
 			log.Printf("Insert agg result failed: %v", err)
 		}
@@ -750,7 +937,7 @@ func (s *APIServer) GetAggCore(w http.ResponseWriter, req *http.Request) {
 	}
 
 	if gameDateStr != "" {
-		where = append(where, "gamedate::date = $"+strconv.Itoa(argID)) // no timezone shifts
+		where = append(where, fmt.Sprintf("gamedate::date = $%d", argID))
 		args = append(args, gameDateStr)
 		argID++
 	}

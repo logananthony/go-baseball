@@ -25,7 +25,9 @@ func SimulateGame(
 	bullpenRoleProbs []models.BullpenRoleProb,
 	gameData models.GameData,
 	outcomeMode string,
-) (homeScore int, awayScore int, homeTeam string, awayTeam string, homeStartingPitcherName string, awayStartingPitcherName string, gameDate time.Time) {
+) (homeScore int, awayScore int, homeTeam string, awayTeam string,
+	homeStartingPitcherName string, awayStartingPitcherName string,
+	gameDate time.Time, batterEvents []models.BatterEvent, pitcherEvents []models.PitcherEvent) {
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -148,6 +150,21 @@ func SimulateGame(
 			for _, paResult := range awayPaResult {
 				AppendPlateAppearanceTopResult(paResult, awayScore, homeScore, atBatNumber, inning, topOuts, awayBaseState)
 				AppendGameResult(&gameRes, paResult)
+
+				// COLLECT BATTER EVENTS
+				if len(paResult.BatterId) > 0 && len(paResult.EventType) > 0 {
+					batterEvents = append(batterEvents, models.BatterEvent{
+						BatterID:  int64(paResult.BatterId[0]),
+						EventType: paResult.EventType[len(paResult.EventType)-1],
+					})
+				}
+				// COLLECT PITCHER EVENTS
+				if len(paResult.PitcherId) > 0 && len(paResult.EventType) > 0 && paResult.EventType[len(paResult.EventType)-1] == "strikeout" {
+					pitcherEvents = append(pitcherEvents, models.PitcherEvent{
+						PitcherID: int64(paResult.PitcherId[0]),
+						EventType: "strikeout",
+					})
+				}
 			}
 
 			usedPitchersHome := map[int]bool{}
@@ -242,7 +259,7 @@ func SimulateGame(
 				postGameResults([]models.GameResult{gameRes}, season, db)
 			}
 			fmt.Println("Home team wins:", homeScore, "-", awayScore)
-			return homeScore, awayScore, homeTeam, awayTeam, homeStartingPitcherName, awayStartingPitcherName, gameDate
+			return homeScore, awayScore, homeTeam, awayTeam, homeStartingPitcherName, awayStartingPitcherName, gameDate, batterEvents, pitcherEvents
 		}
 
 		for botOuts < 3 {
@@ -276,7 +293,21 @@ func SimulateGame(
 			for _, paResult := range homePaResult {
 				AppendPlateAppearanceBotResult(paResult, awayScore, homeScore, atBatNumber, inning, topOuts, homeBaseState)
 				AppendGameResult(&gameRes, paResult)
+
+				if len(paResult.BatterId) > 0 && len(paResult.EventType) > 0 {
+					batterEvents = append(batterEvents, models.BatterEvent{
+						BatterID:  int64(paResult.BatterId[0]),
+						EventType: paResult.EventType[len(paResult.EventType)-1],
+					})
+				}
+				if len(paResult.PitcherId) > 0 && len(paResult.EventType) > 0 && paResult.EventType[len(paResult.EventType)-1] == "strikeout" {
+					pitcherEvents = append(pitcherEvents, models.PitcherEvent{
+						PitcherID: int64(paResult.PitcherId[0]),
+						EventType: "strikeout",
+					})
+				}
 			}
+
 			// spew.Dump(gameRes.PAResult)
 			homeBatterNumber++
 
@@ -285,7 +316,7 @@ func SimulateGame(
 				if outcomeMode == "pbp" {
 					postGameResults([]models.GameResult{gameRes}, season, db)
 				}
-				return homeScore, awayScore, homeTeam, awayTeam, homeStartingPitcherName, awayStartingPitcherName, gameDate
+				return homeScore, awayScore, homeTeam, awayTeam, homeStartingPitcherName, awayStartingPitcherName, gameDate, batterEvents, pitcherEvents
 			}
 		}
 
@@ -464,7 +495,7 @@ func SimulateGame(
 			if outcomeMode == "pbp" {
 				postGameResults([]models.GameResult{gameRes}, season, db)
 			}
-			return homeScore, awayScore, homeTeam, awayTeam, homeStartingPitcherName, awayStartingPitcherName, gameDate
+			return homeScore, awayScore, homeTeam, awayTeam, homeStartingPitcherName, awayStartingPitcherName, gameDate, batterEvents, pitcherEvents
 		}
 
 		inning++

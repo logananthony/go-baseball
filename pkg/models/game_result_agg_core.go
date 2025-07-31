@@ -158,4 +158,8 @@ type GameResultAggCore struct {
 	Q80Spread     float64
 	SpreadLower95 float64
 	SpreadUpper95 float64
+
+	AvgTotalRuns float64
+	AvgHomeScore float64
+	AvgAwayScore float64
 }
