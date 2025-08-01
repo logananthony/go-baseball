@@ -19,7 +19,9 @@ Too many problems in baseball analytics go unsolved because we just don’t have
   - `models`: shared data structures
   - `utils`: helper functions
   - `config`: database connections
-  - `poster`: inserts results into database
+- `poster`: inserts results into database
+
+For a deeper look at the modeling flow, see [MODELING_OVERVIEW.md](MODELING_OVERVIEW.md).
 
 ## Technologies
 
