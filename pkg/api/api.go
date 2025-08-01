@@ -149,16 +149,17 @@ func runSims(db *sql.DB, data models.GameData, n int, outcomeMode string) {
 	wg.Wait()
 }
 
-func aggregateEventCounts(eventCounts []int) (prob05, prob15, avg, iqr, q80, lower05, upper05, lower15, upper15 float64) {
+func aggregateEventCounts(eventCounts []int) (prob05, prob15, avg, total, iqr, q80, lower05, upper05, lower15, upper15 float64) {
 	n := len(eventCounts)
 	if n == 0 {
-		return 0, 0, 0, 0, 0, 0, 0, 0, 0
+		return 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 	}
 	counts := make([]float64, n)
 	for i, c := range eventCounts {
 		counts[i] = float64(c)
 	}
 	avg = utils.Mean(counts)
+	total = float64(len(eventCounts))
 	iqr = utils.QuantileWidth(counts, 0.25, 0.75)
 	q80 = utils.QuantileWidth(counts, 0.10, 0.90)
 
@@ -565,6 +566,8 @@ func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 				batterRunCounts[id] = append(batterRunCounts[id], v)
 			}
 
+			// fmt.Println(batterRunCounts)
+
 			pitcherCountMap := map[int64]int{}
 			for _, e := range sim.PitcherEvents {
 				if e.EventType == "strikeout" {
@@ -592,18 +595,21 @@ func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 			rbiCounts := batterRBICounts[batterID]
 			// totalHits := len(singleCounts) + len(doubleCounts) + len(tripleCounts) + len(hrCounts)
 
-			prob05Hits, prob15Hits, avgHits, iqrHits, q80Hits, lower05Hits, upper05Hits, lower15Hits, upper15Hits := aggregateEventCounts(hitCounts)
-			prob05Singles, prob15Singles, avgSingles, iqrSingles, q80Singles, lower05Singles, upper05Singles, lower15Singles, upper15Singles := aggregateEventCounts(singleCounts)
-			prob05Doubles, prob15Doubles, avgDoubles, iqrDoubles, q80Doubles, lower05Doubles, upper05Doubles, lower15Doubles, upper15Doubles := aggregateEventCounts(doubleCounts)
-			prob05Triples, prob15Triples, avgTriples, iqrTriples, q80Triples, lower05Triples, upper05Triples, lower15Triples, upper15Triples := aggregateEventCounts(tripleCounts)
-			prob05HR, prob15HR, avgHR, iqrHR, q80HR, lower05HR, upper05HR, lower15HR, upper15HR := aggregateEventCounts(hrCounts)
-			prob05Runs, prob15Runs, avgRuns, iqrRuns, q80Runs, lower05Runs, upper05Runs, lower15Runs, upper15Runs := aggregateEventCounts(runCounts)
-			prob05RBI, prob15RBI, avgRBI, iqrRBI, q80RBI, lower05RBI, upper05RBI, lower15RBI, upper15RBI := aggregateEventCounts(rbiCounts)
+			prob05Hits, prob15Hits, avgHits, _, iqrHits, q80Hits, lower05Hits, upper05Hits, lower15Hits, upper15Hits := aggregateEventCounts(hitCounts)
+			prob05Singles, prob15Singles, avgSingles, _, iqrSingles, q80Singles, lower05Singles, upper05Singles, lower15Singles, upper15Singles := aggregateEventCounts(singleCounts)
+			prob05Doubles, prob15Doubles, avgDoubles, _, iqrDoubles, q80Doubles, lower05Doubles, upper05Doubles, lower15Doubles, upper15Doubles := aggregateEventCounts(doubleCounts)
+			prob05Triples, prob15Triples, avgTriples, _, iqrTriples, q80Triples, lower05Triples, upper05Triples, lower15Triples, upper15Triples := aggregateEventCounts(tripleCounts)
+			prob05HR, prob15HR, avgHR, _, iqrHR, q80HR, lower05HR, upper05HR, lower15HR, upper15HR := aggregateEventCounts(hrCounts)
+			prob05Runs, prob15Runs, _, totalRuns, iqrRuns, q80Runs, lower05Runs, upper05Runs, lower15Runs, upper15Runs := aggregateEventCounts(runCounts)
+			prob05RBI, prob15RBI, avgRBI, _, iqrRBI, q80RBI, lower05RBI, upper05RBI, lower15RBI, upper15RBI := aggregateEventCounts(rbiCounts)
 
 			totalHits := 0
 			for _, h := range hitCounts {
 				totalHits += h
 			}
+
+			avgRuns := totalRuns / float64(body.NSims)
+			// avgRBI := totalRBI / float64(body.NSims)
 
 			totalAtBats := utils.Sum(hitCounts) + utils.Sum(kCounts) + utils.Sum(outCounts)
 			totalPlateAppearances := utils.Sum(hitCounts) + utils.Sum(kCounts) + utils.Sum(outCounts) + utils.Sum(bbCounts)
