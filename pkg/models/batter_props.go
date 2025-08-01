@@ -66,4 +66,9 @@ type BatterProps struct {
 	AvgHomeruns           float64
 	IqrHomeruns           float64
 	Q80Homeruns           float64
+	BattingAvg            float64
+	SluggingPct           float64
+	OnBasePct             float64
+	StrikeoutPct          float64
+	WalkPct               float64
 }

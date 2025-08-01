@@ -21,6 +21,7 @@ func InsertBatterProps(db *sql.DB, prop models.BatterProps) error {
 		"over_1_5_triples_lower95", "over_1_5_triples_upper95", "avg_triples", "iqr_triples", "q80_triples",
 		"prob_over_0_5_homeruns", "prob_over_1_5_homeruns", "over_0_5_homeruns_lower95", "over_0_5_homeruns_upper95",
 		"over_1_5_homeruns_lower95", "over_1_5_homeruns_upper95", "avg_homeruns", "iqr_homeruns", "q80_homeruns",
+		"batting_avg", "slugging_pct", "on_base_pct", "strikeout_pct", "walk_pct",
 	}
 
 	values := []interface{}{
@@ -35,6 +36,7 @@ func InsertBatterProps(db *sql.DB, prop models.BatterProps) error {
 		prop.Over15TriplesLower95, prop.Over15TriplesUpper95, prop.AvgTriples, prop.IqrTriples, prop.Q80Triples,
 		prop.ProbOver05Homeruns, prop.ProbOver15Homeruns, prop.Over05HomerunsLower95, prop.Over05HomerunsUpper95,
 		prop.Over15HomerunsLower95, prop.Over15HomerunsUpper95, prop.AvgHomeruns, prop.IqrHomeruns, prop.Q80Homeruns,
+		prop.BattingAvg, prop.SluggingPct, prop.OnBasePct, prop.StrikeoutPct, prop.WalkPct,
 	}
 
 	placeholders := make([]string, len(values))

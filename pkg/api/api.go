@@ -264,7 +264,7 @@ func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 			}{
 				Name:  b.PlayerName,
 				Order: b.BattingOrder,
-				Team:  b.TeamAbbreviation,
+				Team:  b.Team,
 			}
 			// Pitchers
 			pitcherMeta[int64(b.HomePitcherId)] = b.HomePitcherName
@@ -516,6 +516,9 @@ func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 
 		// --- PLAYER-LEVEL AGGREGATION ---
 
+		batterOutCounts := map[int64][]int{}
+		batterKCounts := map[int64][]int{}
+		batterBBCounts := map[int64][]int{}
 		batterHitCounts := map[int64][]int{}
 		batterSingleCounts := map[int64][]int{}
 		batterDoubleCounts := map[int64][]int{}
@@ -537,6 +540,9 @@ func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 				}
 			}
 			for batterID, m := range batterCountMap {
+				batterOutCounts[batterID] = append(batterOutCounts[batterID], m["out"])
+				batterKCounts[batterID] = append(batterKCounts[batterID], m["strikeout"])
+				batterBBCounts[batterID] = append(batterBBCounts[batterID], m["walk"])
 				batterHitCounts[batterID] = append(batterHitCounts[batterID], m["hits"])
 				batterSingleCounts[batterID] = append(batterSingleCounts[batterID], m["single"])
 				batterDoubleCounts[batterID] = append(batterDoubleCounts[batterID], m["double"])
@@ -560,16 +566,49 @@ func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 		// --- Upsert batter props ---
 		for batterID, hitCounts := range batterHitCounts {
 			// Aggregate ALL batter stats
+			outCounts := batterOutCounts[batterID]
+			kCounts := batterKCounts[batterID]
+			bbCounts := batterBBCounts[batterID]
 			singleCounts := batterSingleCounts[batterID]
 			doubleCounts := batterDoubleCounts[batterID]
 			tripleCounts := batterTripleCounts[batterID]
 			hrCounts := batterHomerunCounts[batterID]
+			// totalHits := len(singleCounts) + len(doubleCounts) + len(tripleCounts) + len(hrCounts)
 
 			prob05Hits, prob15Hits, avgHits, iqrHits, q80Hits, lower05Hits, upper05Hits, lower15Hits, upper15Hits := aggregateEventCounts(hitCounts)
 			prob05Singles, prob15Singles, avgSingles, iqrSingles, q80Singles, lower05Singles, upper05Singles, lower15Singles, upper15Singles := aggregateEventCounts(singleCounts)
 			prob05Doubles, prob15Doubles, avgDoubles, iqrDoubles, q80Doubles, lower05Doubles, upper05Doubles, lower15Doubles, upper15Doubles := aggregateEventCounts(doubleCounts)
 			prob05Triples, prob15Triples, avgTriples, iqrTriples, q80Triples, lower05Triples, upper05Triples, lower15Triples, upper15Triples := aggregateEventCounts(tripleCounts)
 			prob05HR, prob15HR, avgHR, iqrHR, q80HR, lower05HR, upper05HR, lower15HR, upper15HR := aggregateEventCounts(hrCounts)
+
+			totalHits := 0
+			for _, h := range hitCounts {
+				totalHits += h
+			}
+
+			totalAtBats := utils.Sum(hitCounts) + utils.Sum(kCounts) + utils.Sum(outCounts)
+			totalPlateAppearances := utils.Sum(hitCounts) + utils.Sum(kCounts) + utils.Sum(outCounts) + utils.Sum(bbCounts)
+
+			battingAvg := 0.0
+			sluggingPct := 0.0
+			onBasePct := 0.0
+			kPct := 0.0
+			bbPct := 0.0
+			if totalAtBats > 0 {
+				battingAvg = float64(totalHits) / float64(totalAtBats)
+
+				onBasePct = (float64(totalHits) + float64(utils.Sum(bbCounts))) / float64(totalAtBats)
+
+				kPct = (float64(utils.Sum(kCounts))) / float64(totalPlateAppearances)
+				bbPct = (float64(utils.Sum(bbCounts))) / float64(totalPlateAppearances)
+
+				totalBases :=
+					1*utils.Sum(singleCounts) +
+						2*utils.Sum(doubleCounts) +
+						3*utils.Sum(tripleCounts) +
+						4*utils.Sum(hrCounts)
+				sluggingPct = float64(totalBases) / float64(totalAtBats)
+			}
 
 			meta := batterMeta[batterID]
 			bp := models.BatterProps{
@@ -611,6 +650,12 @@ func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 				Over05HomerunsLower95: lower05HR, Over05HomerunsUpper95: upper05HR,
 				Over15HomerunsLower95: lower15HR, Over15HomerunsUpper95: upper15HR,
 				AvgHomeruns: avgHR, IqrHomeruns: iqrHR, Q80Homeruns: q80HR,
+
+				BattingAvg:   battingAvg,
+				SluggingPct:  sluggingPct,
+				OnBasePct:    onBasePct,
+				StrikeoutPct: kPct,
+				WalkPct:      bbPct,
 			}
 			_ = poster.InsertBatterProps(s.db, bp)
 		}
