@@ -132,6 +132,9 @@ func SimulatePlateAppearance(pa []models.PlateAppearanceData, sim []models.SimDa
 	on1b_sequence := []bool{}
 	on2b_sequence := []bool{}
 	on3b_sequence := []bool{}
+	runner_on1b_sequence := []int{}
+	runner_on2b_sequence := []int{}
+	runner_on3b_sequence := []int{}
 
 	for {
 
@@ -324,6 +327,9 @@ func SimulatePlateAppearance(pa []models.PlateAppearanceData, sim []models.SimDa
 		on1b_sequence = append(on1b_sequence, pa[0].On1b)
 		on2b_sequence = append(on2b_sequence, pa[0].On2b)
 		on3b_sequence = append(on3b_sequence, pa[0].On3b)
+		runner_on1b_sequence = append(runner_on1b_sequence, pa[0].RunnerOn1bID)
+		runner_on2b_sequence = append(runner_on2b_sequence, pa[0].RunnerOn2bID)
+		runner_on3b_sequence = append(runner_on3b_sequence, pa[0].RunnerOn3bID)
 
 		// log.Printf(
 		// 	"Pitch #%d | Type=%s | PlateX=%.2f PlateZ=%.2f | Zone=%d | Velo=%.1f | Strike=%s | Swing=%t | Contact=%t | BatterID=%d | PitcherID=%d | Stand=%s | Throws=%s | EV_Bucket=%s | Vel_Bucket=%s",
@@ -416,6 +422,9 @@ func SimulatePlateAppearance(pa []models.PlateAppearanceData, sim []models.SimDa
 					On1b:            on1b_sequence,
 					On2b:            on2b_sequence,
 					On3b:            on3b_sequence,
+					RunnerOn1bID:    runner_on1b_sequence,
+					RunnerOn2bID:    runner_on2b_sequence,
+					RunnerOn3bID:    runner_on3b_sequence,
 				}}
 
 			}
@@ -474,6 +483,9 @@ func SimulatePlateAppearance(pa []models.PlateAppearanceData, sim []models.SimDa
 					On1b:            on1b_sequence,
 					On2b:            on2b_sequence,
 					On3b:            on3b_sequence,
+					RunnerOn1bID:    runner_on1b_sequence,
+					RunnerOn2bID:    runner_on2b_sequence,
+					RunnerOn3bID:    runner_on3b_sequence,
 				}}
 			case balls == 4:
 
@@ -513,6 +525,9 @@ func SimulatePlateAppearance(pa []models.PlateAppearanceData, sim []models.SimDa
 					On1b:            on1b_sequence,
 					On2b:            on2b_sequence,
 					On3b:            on3b_sequence,
+					RunnerOn1bID:    runner_on1b_sequence,
+					RunnerOn2bID:    runner_on2b_sequence,
+					RunnerOn3bID:    runner_on3b_sequence,
 				}}
 
 			}

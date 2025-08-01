@@ -16,4 +16,7 @@ type PlateAppearanceData struct {
 	On1b            bool
 	On2b            bool
 	On3b            bool
+	RunnerOn1bID    int
+	RunnerOn2bID    int
+	RunnerOn3bID    int
 }
