@@ -6,4 +6,5 @@ type SimOutcome struct {
 	GamePk        int
 	BatterEvents  []BatterEvent
 	PitcherEvents []PitcherEvent
+	RunEvents     []RunEvent
 }

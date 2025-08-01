@@ -27,7 +27,7 @@ func SimulateGame(
 	outcomeMode string,
 ) (homeScore int, awayScore int, homeTeam string, awayTeam string,
 	homeStartingPitcherName string, awayStartingPitcherName string,
-	gameDate time.Time, batterEvents []models.BatterEvent, pitcherEvents []models.PitcherEvent) {
+	gameDate time.Time, batterEvents []models.BatterEvent, pitcherEvents []models.PitcherEvent, runEvents []models.RunEvent) {
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -110,8 +110,10 @@ func SimulateGame(
 
 		topOuts := 0
 		botOuts := 0
-		awayBaseState := []bool{false, false, false, false}
-		homeBaseState := []bool{false, false, false, false}
+		awayBaseState := []int{0, 0, 0}
+		homeBaseState := []int{0, 0, 0}
+		var scoredRuns []int
+		var rbi int
 		// priorAwayScore := awayScore
 		// priorHomeScore := homeScore
 
@@ -135,17 +137,20 @@ func SimulateGame(
 				Inning:          inning,
 				InningTopBot:    "Top",
 				Outs:            topOuts,
-				On1b:            awayBaseState[0],
-				On2b:            awayBaseState[1],
-				On3b:            awayBaseState[2],
+				On1b:            awayBaseState[0] != 0,
+				On2b:            awayBaseState[1] != 0,
+				On3b:            awayBaseState[2] != 0,
 			}}, []models.SimData{simData})
 
 			atBatNumber++
 
 			// fmt.Println("Home Pitch Count:", homePitchCount)
-			awayScore, awayBaseState, topOuts, homePitchCount = ProcessPlateAppearance(
+			awayScore, awayBaseState, topOuts, homePitchCount, scoredRuns, rbi = ProcessPlateAppearance(
 				awayPaResult, awayScore, awayBaseState, topOuts, homePitchCount,
 			)
+			for _, id := range scoredRuns {
+				runEvents = append(runEvents, models.RunEvent{RunnerID: int64(id)})
+			}
 
 			for _, paResult := range awayPaResult {
 				AppendPlateAppearanceTopResult(paResult, awayScore, homeScore, atBatNumber, inning, topOuts, awayBaseState)
@@ -153,9 +158,17 @@ func SimulateGame(
 
 				// COLLECT BATTER EVENTS
 				if len(paResult.BatterId) > 0 && len(paResult.EventType) > 0 {
+					batterRuns := 0
+					for _, id := range scoredRuns {
+						if id == awayBatter.PlayerId {
+							batterRuns++
+						}
+					}
 					batterEvents = append(batterEvents, models.BatterEvent{
 						BatterID:  int64(paResult.BatterId[0]),
 						EventType: paResult.EventType[len(paResult.EventType)-1],
+						Runs:      batterRuns,
+						RBI:       rbi,
 					})
 				}
 				// COLLECT PITCHER EVENTS
@@ -259,7 +272,7 @@ func SimulateGame(
 				postGameResults([]models.GameResult{gameRes}, season, db)
 			}
 			fmt.Println("Home team wins:", homeScore, "-", awayScore)
-			return homeScore, awayScore, homeTeam, awayTeam, homeStartingPitcherName, awayStartingPitcherName, gameDate, batterEvents, pitcherEvents
+			return homeScore, awayScore, homeTeam, awayTeam, homeStartingPitcherName, awayStartingPitcherName, gameDate, batterEvents, pitcherEvents, runEvents
 		}
 
 		for botOuts < 3 {
@@ -279,25 +292,36 @@ func SimulateGame(
 				Inning:          inning,
 				InningTopBot:    "Bot",
 				Outs:            topOuts,
-				On1b:            homeBaseState[0],
-				On2b:            homeBaseState[1],
-				On3b:            homeBaseState[2],
+				On1b:            homeBaseState[0] != 0,
+				On2b:            homeBaseState[1] != 0,
+				On3b:            homeBaseState[2] != 0,
 			}}, []models.SimData{simData})
 
 			atBatNumber++
 
-			homeScore, homeBaseState, botOuts, awayPitchCount = ProcessPlateAppearance(
+			homeScore, homeBaseState, botOuts, awayPitchCount, scoredRuns, rbi = ProcessPlateAppearance(
 				homePaResult, homeScore, homeBaseState, botOuts, awayPitchCount,
 			)
+			for _, id := range scoredRuns {
+				runEvents = append(runEvents, models.RunEvent{RunnerID: int64(id)})
+			}
 
 			for _, paResult := range homePaResult {
 				AppendPlateAppearanceBotResult(paResult, awayScore, homeScore, atBatNumber, inning, topOuts, homeBaseState)
 				AppendGameResult(&gameRes, paResult)
 
 				if len(paResult.BatterId) > 0 && len(paResult.EventType) > 0 {
+					batterRuns := 0
+					for _, id := range scoredRuns {
+						if id == homeBatter.PlayerId {
+							batterRuns++
+						}
+					}
 					batterEvents = append(batterEvents, models.BatterEvent{
 						BatterID:  int64(paResult.BatterId[0]),
 						EventType: paResult.EventType[len(paResult.EventType)-1],
+						Runs:      batterRuns,
+						RBI:       rbi,
 					})
 				}
 				if len(paResult.PitcherId) > 0 && len(paResult.EventType) > 0 && paResult.EventType[len(paResult.EventType)-1] == "strikeout" {
@@ -316,7 +340,7 @@ func SimulateGame(
 				if outcomeMode == "pbp" {
 					postGameResults([]models.GameResult{gameRes}, season, db)
 				}
-				return homeScore, awayScore, homeTeam, awayTeam, homeStartingPitcherName, awayStartingPitcherName, gameDate, batterEvents, pitcherEvents
+				return homeScore, awayScore, homeTeam, awayTeam, homeStartingPitcherName, awayStartingPitcherName, gameDate, batterEvents, pitcherEvents, runEvents
 			}
 		}
 
@@ -495,7 +519,7 @@ func SimulateGame(
 			if outcomeMode == "pbp" {
 				postGameResults([]models.GameResult{gameRes}, season, db)
 			}
-			return homeScore, awayScore, homeTeam, awayTeam, homeStartingPitcherName, awayStartingPitcherName, gameDate, batterEvents, pitcherEvents
+			return homeScore, awayScore, homeTeam, awayTeam, homeStartingPitcherName, awayStartingPitcherName, gameDate, batterEvents, pitcherEvents, runEvents
 		}
 
 		inning++
@@ -503,28 +527,28 @@ func SimulateGame(
 
 }
 
-func AppendPlateAppearanceTopResult(paResult models.PlateAppearanceResult, awayScore int, homeScore int, atBatNumber int, inning int, topOuts int, awayBaseState []bool) {
+func AppendPlateAppearanceTopResult(paResult models.PlateAppearanceResult, awayScore int, homeScore int, atBatNumber int, inning int, topOuts int, awayBaseState []int) {
 	paResult.AwayScore = append(paResult.AwayScore, awayScore)
 	paResult.HomeScore = append(paResult.HomeScore, homeScore)
 	paResult.AtBatNumber = append(paResult.AtBatNumber, atBatNumber)
 	paResult.Inning = append(paResult.Inning, inning)
 	paResult.InningTopBot = append(paResult.InningTopBot, "Top")
 	paResult.Outs = append(paResult.Outs, topOuts)
-	paResult.On1b = append(paResult.On1b, awayBaseState[0])
-	paResult.On2b = append(paResult.On2b, awayBaseState[1])
-	paResult.On3b = append(paResult.On3b, awayBaseState[2])
+	paResult.On1b = append(paResult.On1b, awayBaseState[0] != 0)
+	paResult.On2b = append(paResult.On2b, awayBaseState[1] != 0)
+	paResult.On3b = append(paResult.On3b, awayBaseState[2] != 0)
 }
 
-func AppendPlateAppearanceBotResult(paResult models.PlateAppearanceResult, awayScore int, homeScore int, atBatNumber int, inning int, topOuts int, homeBaseState []bool) {
+func AppendPlateAppearanceBotResult(paResult models.PlateAppearanceResult, awayScore int, homeScore int, atBatNumber int, inning int, topOuts int, homeBaseState []int) {
 	paResult.AwayScore = append(paResult.AwayScore, awayScore)
 	paResult.HomeScore = append(paResult.HomeScore, homeScore)
 	paResult.AtBatNumber = append(paResult.AtBatNumber, atBatNumber)
 	paResult.Inning = append(paResult.Inning, inning)
 	paResult.InningTopBot = append(paResult.InningTopBot, "Bot")
 	paResult.Outs = append(paResult.Outs, topOuts)
-	paResult.On1b = append(paResult.On1b, homeBaseState[0])
-	paResult.On2b = append(paResult.On2b, homeBaseState[1])
-	paResult.On3b = append(paResult.On3b, homeBaseState[2])
+	paResult.On1b = append(paResult.On1b, homeBaseState[0] != 0)
+	paResult.On2b = append(paResult.On2b, homeBaseState[1] != 0)
+	paResult.On3b = append(paResult.On3b, homeBaseState[2] != 0)
 }
 
 func AppendGameResult(gameRes *models.GameResult, paResult models.PlateAppearanceResult) {
@@ -573,37 +597,37 @@ func postGameResults(gameRes []models.GameResult, season int, db *sql.DB) {
 	}
 }
 
-func advance(oldBases []bool, basesMoved int, event string) (int, []bool) {
-	newBases := make([]bool, 3)
-	runs := 0
+func advance(oldBases []int, basesMoved int, batterID int, event string) ([]int, []int) {
+	newBases := make([]int, 3)
+	runs := []int{}
 
 	// 1) Advance existing runners (right-to-left to avoid overwrite)
 	for i := 2; i >= 0; i-- {
-		if !oldBases[i] {
+		if oldBases[i] == 0 {
 			continue
 		}
 
 		// sequencing boosts (optional house rules)
 		if event == "single" && i == 1 && basesMoved == 1 { // runner on 2B scores on single
-			runs++
+			runs = append(runs, oldBases[i])
 			continue
 		}
 		if event == "double" && i == 0 && basesMoved == 2 { // runner on 1B scores on double
-			runs++
+			runs = append(runs, oldBases[i])
 			continue
 		}
 
 		dest := i + basesMoved
 		if dest >= 3 {
-			runs++ // runner scores
+			runs = append(runs, oldBases[i])
 		} else {
-			newBases[dest] = true
+			newBases[dest] = oldBases[i]
 		}
 	}
 
 	// 2) Place the batter
 	if event == "home_run" {
-		runs++ // batter scores; bases cleared in caller
+		runs = append(runs, batterID)
 	} else {
 		placement := basesMoved - 1 // 0 for walk/single, 1 for double, 2 for triple
 		if placement < 0 {
@@ -611,13 +635,13 @@ func advance(oldBases []bool, basesMoved int, event string) (int, []bool) {
 		}
 
 		// force-advance if base occupied (walk with traffic, etc.)
-		for placement < 3 && newBases[placement] {
+		for placement < 3 && newBases[placement] != 0 {
 			placement++
 		}
 		if placement >= 3 {
-			runs++ // forced across home (e.g., walk with bases loaded)
+			runs = append(runs, batterID)
 		} else {
-			newBases[placement] = true
+			newBases[placement] = batterID
 		}
 	}
 
@@ -626,34 +650,33 @@ func advance(oldBases []bool, basesMoved int, event string) (int, []bool) {
 
 // walkAdvance moves only the runners that are actually forced.
 // returns (runs_scored, new_base_state)
-func walkAdvance(old []bool) (int, []bool) {
-	newB := make([]bool, 3)
-	runs := 0
+func walkAdvance(old []int, batterID int) ([]int, []int) {
+	newB := make([]int, 3)
+	runs := []int{}
 
 	// 3️⃣ Runner on 3B
-	if old[0] && old[1] && old[2] {
-		// bases were loaded → he’s forced home
-		runs++
-	} else if old[2] {
-		newB[2] = true // stays put
+	if old[0] != 0 && old[1] != 0 && old[2] != 0 {
+		runs = append(runs, old[2])
+	} else if old[2] != 0 {
+		newB[2] = old[2]
 	}
 
 	// 2️⃣ Runner on 2B
-	if old[1] {
-		if old[0] { // 1B taken → forced
-			newB[2] = true // to 3B
+	if old[1] != 0 {
+		if old[0] != 0 { // 1B taken → forced
+			newB[2] = old[1]
 		} else {
-			newB[1] = true // stays
+			newB[1] = old[1]
 		}
 	}
 
 	// 1️⃣ Runner on 1B
-	if old[0] {
-		newB[1] = true // always goes to 2B
+	if old[0] != 0 {
+		newB[1] = old[0]
 	}
 
 	// Batter to 1B
-	newB[0] = true
+	newB[0] = batterID
 
 	return runs, newB
 }
@@ -661,54 +684,57 @@ func walkAdvance(old []bool) (int, []bool) {
 func ProcessPlateAppearance(
 	paResult []models.PlateAppearanceResult,
 	score int,
-	baseState []bool, // must be len==3 now
+	baseState []int, // holds runner IDs
 	outs int,
 	gamePitchCount int,
-) (int, []bool, int, int) {
+) (int, []int, int, int, []int, int) {
 
 	if len(paResult) == 0 || len(paResult[0].EventType) == 0 {
-		return score, baseState, outs, gamePitchCount
+		return score, baseState, outs, gamePitchCount, nil, 0
 	}
 	lastEvent := paResult[0].EventType[len(paResult[0].EventType)-1]
-
-	var runs int
+	batterID := paResult[0].BatterId[len(paResult[0].BatterId)-1]
+	scored := []int{}
 
 	switch lastEvent {
 
 	case "walk":
-		var r int
-		r, baseState = walkAdvance(baseState)
-		score += r
+		var r []int
+		r, baseState = walkAdvance(baseState, batterID)
+		scored = append(scored, r...)
 
 	case "single":
-		runs, baseState = advance(baseState, 1, "single")
-		score += runs
+		var r []int
+		r, baseState = advance(baseState, 1, batterID, "single")
+		scored = append(scored, r...)
 
 	case "double":
-		runs, baseState = advance(baseState, 2, "double")
-		score += runs
+		var r []int
+		r, baseState = advance(baseState, 2, batterID, "double")
+		scored = append(scored, r...)
 
 	case "triple":
-		runs, baseState = advance(baseState, 3, "triple")
-		score += runs
+		var r []int
+		r, baseState = advance(baseState, 3, batterID, "triple")
+		scored = append(scored, r...)
 		// batter already placed on 3B by advance()
 
 	case "home_run":
-		for _, occ := range baseState {
-			if occ {
-				score++
+		for _, id := range baseState {
+			if id != 0 {
+				scored = append(scored, id)
 			}
 		}
-		score++ // batter
-		baseState = []bool{false, false, false}
+		scored = append(scored, batterID)
+		baseState = []int{0, 0, 0}
 
 	case "out", "strikeout":
 		outs++
 	}
-	// fmt.Println("gamePitchCount: ", gamePitchCount)
-	// fmt.Println("paResult[0].PitchCount[0]: ", paResult[0].PitchCount[len(paResult[0].PitchCount)-1])
-	updatedGamePitchCount := gamePitchCount + paResult[0].PitchCount[len(paResult[0].PitchCount)-1]
-	// fmt.Println("updatedGamePitchCount: ", updatedGamePitchCount)
+	score += len(scored)
+	rbi := len(scored)
 
-	return score, baseState, outs, updatedGamePitchCount
+	updatedGamePitchCount := gamePitchCount + paResult[0].PitchCount[len(paResult[0].PitchCount)-1]
+
+	return score, baseState, outs, updatedGamePitchCount, scored, rbi
 }
