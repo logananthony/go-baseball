@@ -323,7 +323,7 @@ func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 						log.Printf("SimulateGame panic: %v", r)
 					}
 				}()
-				h, a, ht, at, hpn, apn, gd, batterEvents, pitcherEvents := sim.SimulateGame(
+				h, a, ht, at, hpn, apn, gd, batterEvents, pitcherEvents, runEvents := sim.SimulateGame(
 					s.db, simData, homeLineup, awayLineup, pitchingSubProbs, homeBullpen, awayBullpen, bullpenRoleProbs, data, outcomeMode,
 				)
 				metaOnce.Do(func() {
@@ -339,6 +339,7 @@ func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 					AwayScore:     a,
 					BatterEvents:  batterEvents,
 					PitcherEvents: pitcherEvents,
+					RunEvents:     runEvents,
 				})
 				mu.Unlock()
 			}()
@@ -524,11 +525,15 @@ func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 		batterDoubleCounts := map[int64][]int{}
 		batterTripleCounts := map[int64][]int{}
 		batterHomerunCounts := map[int64][]int{}
+		batterRunCounts := map[int64][]int{}
+		batterRBICounts := map[int64][]int{}
 		pitcherKCounts := map[int64][]int{}
 
 		// --- Build stat counts per player for each sim ---
 		for _, sim := range outcomes {
 			batterCountMap := map[int64]map[string]int{}
+			rbiMap := map[int64]int{}
+			runMap := map[int64]int{}
 			for _, e := range sim.BatterEvents {
 				if batterCountMap[e.BatterID] == nil {
 					batterCountMap[e.BatterID] = map[string]int{}
@@ -538,6 +543,10 @@ func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 				case "single", "double", "triple", "home_run":
 					batterCountMap[e.BatterID]["hits"]++
 				}
+				rbiMap[e.BatterID] += e.RBI
+			}
+			for _, r := range sim.RunEvents {
+				runMap[r.RunnerID]++
 			}
 			for batterID, m := range batterCountMap {
 				batterOutCounts[batterID] = append(batterOutCounts[batterID], m["out"])
@@ -548,6 +557,12 @@ func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 				batterDoubleCounts[batterID] = append(batterDoubleCounts[batterID], m["double"])
 				batterTripleCounts[batterID] = append(batterTripleCounts[batterID], m["triple"])
 				batterHomerunCounts[batterID] = append(batterHomerunCounts[batterID], m["home_run"])
+			}
+			for id, v := range rbiMap {
+				batterRBICounts[id] = append(batterRBICounts[id], v)
+			}
+			for id, v := range runMap {
+				batterRunCounts[id] = append(batterRunCounts[id], v)
 			}
 
 			pitcherCountMap := map[int64]int{}
@@ -573,6 +588,8 @@ func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 			doubleCounts := batterDoubleCounts[batterID]
 			tripleCounts := batterTripleCounts[batterID]
 			hrCounts := batterHomerunCounts[batterID]
+			runCounts := batterRunCounts[batterID]
+			rbiCounts := batterRBICounts[batterID]
 			// totalHits := len(singleCounts) + len(doubleCounts) + len(tripleCounts) + len(hrCounts)
 
 			prob05Hits, prob15Hits, avgHits, iqrHits, q80Hits, lower05Hits, upper05Hits, lower15Hits, upper15Hits := aggregateEventCounts(hitCounts)
@@ -580,6 +597,8 @@ func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 			prob05Doubles, prob15Doubles, avgDoubles, iqrDoubles, q80Doubles, lower05Doubles, upper05Doubles, lower15Doubles, upper15Doubles := aggregateEventCounts(doubleCounts)
 			prob05Triples, prob15Triples, avgTriples, iqrTriples, q80Triples, lower05Triples, upper05Triples, lower15Triples, upper15Triples := aggregateEventCounts(tripleCounts)
 			prob05HR, prob15HR, avgHR, iqrHR, q80HR, lower05HR, upper05HR, lower15HR, upper15HR := aggregateEventCounts(hrCounts)
+			prob05Runs, prob15Runs, avgRuns, iqrRuns, q80Runs, lower05Runs, upper05Runs, lower15Runs, upper15Runs := aggregateEventCounts(runCounts)
+			prob05RBI, prob15RBI, avgRBI, iqrRBI, q80RBI, lower05RBI, upper05RBI, lower15RBI, upper15RBI := aggregateEventCounts(rbiCounts)
 
 			totalHits := 0
 			for _, h := range hitCounts {
@@ -650,6 +669,16 @@ func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 				Over05HomerunsLower95: lower05HR, Over05HomerunsUpper95: upper05HR,
 				Over15HomerunsLower95: lower15HR, Over15HomerunsUpper95: upper15HR,
 				AvgHomeruns: avgHR, IqrHomeruns: iqrHR, Q80Homeruns: q80HR,
+
+				ProbOver05Runs: prob05Runs, ProbOver15Runs: prob15Runs,
+				Over05RunsLower95: lower05Runs, Over05RunsUpper95: upper05Runs,
+				Over15RunsLower95: lower15Runs, Over15RunsUpper95: upper15Runs,
+				AvgRuns: avgRuns, IqrRuns: iqrRuns, Q80Runs: q80Runs,
+
+				ProbOver05RBI: prob05RBI, ProbOver15RBI: prob15RBI,
+				Over05RBILower95: lower05RBI, Over05RBIUpper95: upper05RBI,
+				Over15RBILower95: lower15RBI, Over15RBIUpper95: upper15RBI,
+				AvgRBI: avgRBI, IqrRBI: iqrRBI, Q80RBI: q80RBI,
 
 				BattingAvg:   battingAvg,
 				SluggingPct:  sluggingPct,

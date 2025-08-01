@@ -22,6 +22,10 @@ func InsertBatterProps(db *sql.DB, prop models.BatterProps) error {
 		"prob_over_0_5_homeruns", "prob_over_1_5_homeruns", "over_0_5_homeruns_lower95", "over_0_5_homeruns_upper95",
 		"over_1_5_homeruns_lower95", "over_1_5_homeruns_upper95", "avg_homeruns", "iqr_homeruns", "q80_homeruns",
 		"batting_avg", "slugging_pct", "on_base_pct", "strikeout_pct", "walk_pct",
+		"prob_over_0_5_runs", "prob_over_1_5_runs", "over_0_5_runs_lower95", "over_0_5_runs_upper95",
+		"over_1_5_runs_lower95", "over_1_5_runs_upper95", "avg_runs", "iqr_runs", "q80_runs",
+		"prob_over_0_5_rbi", "prob_over_1_5_rbi", "over_0_5_rbi_lower95", "over_0_5_rbi_upper95",
+		"over_1_5_rbi_lower95", "over_1_5_rbi_upper95", "avg_rbi", "iqr_rbi", "q80_rbi",
 	}
 
 	values := []interface{}{
@@ -37,6 +41,10 @@ func InsertBatterProps(db *sql.DB, prop models.BatterProps) error {
 		prop.ProbOver05Homeruns, prop.ProbOver15Homeruns, prop.Over05HomerunsLower95, prop.Over05HomerunsUpper95,
 		prop.Over15HomerunsLower95, prop.Over15HomerunsUpper95, prop.AvgHomeruns, prop.IqrHomeruns, prop.Q80Homeruns,
 		prop.BattingAvg, prop.SluggingPct, prop.OnBasePct, prop.StrikeoutPct, prop.WalkPct,
+		prop.ProbOver05Runs, prop.ProbOver15Runs, prop.Over05RunsLower95, prop.Over05RunsUpper95,
+		prop.Over15RunsLower95, prop.Over15RunsUpper95, prop.AvgRuns, prop.IqrRuns, prop.Q80Runs,
+		prop.ProbOver05RBI, prop.ProbOver15RBI, prop.Over05RBILower95, prop.Over05RBIUpper95,
+		prop.Over15RBILower95, prop.Over15RBIUpper95, prop.AvgRBI, prop.IqrRBI, prop.Q80RBI,
 	}
 
 	placeholders := make([]string, len(values))

@@ -71,4 +71,26 @@ type BatterProps struct {
 	OnBasePct             float64
 	StrikeoutPct          float64
 	WalkPct               float64
+
+	// Runs scored
+	ProbOver05Runs    float64
+	ProbOver15Runs    float64
+	Over05RunsLower95 float64
+	Over05RunsUpper95 float64
+	Over15RunsLower95 float64
+	Over15RunsUpper95 float64
+	AvgRuns           float64
+	IqrRuns           float64
+	Q80Runs           float64
+
+	// RBIs
+	ProbOver05RBI    float64
+	ProbOver15RBI    float64
+	Over05RBILower95 float64
+	Over05RBIUpper95 float64
+	Over15RBILower95 float64
+	Over15RBIUpper95 float64
+	AvgRBI           float64
+	IqrRBI           float64
+	Q80RBI           float64
 }
