@@ -140,6 +140,9 @@ func SimulateGame(
 				On1b:            awayBaseState[0] != 0,
 				On2b:            awayBaseState[1] != 0,
 				On3b:            awayBaseState[2] != 0,
+				RunnerOn1bID:    awayBaseState[0],
+				RunnerOn2bID:    awayBaseState[1],
+				RunnerOn3bID:    awayBaseState[2],
 			}}, []models.SimData{simData})
 
 			atBatNumber++
@@ -154,7 +157,7 @@ func SimulateGame(
 
 			for _, paResult := range awayPaResult {
 				AppendPlateAppearanceTopResult(paResult, awayScore, homeScore, atBatNumber, inning, topOuts, awayBaseState)
-				AppendGameResult(&gameRes, paResult)
+				AppendGameResult(&gameRes, paResult, awayBatter.PlayerId, rbi)
 
 				// COLLECT BATTER EVENTS
 				if len(paResult.BatterId) > 0 && len(paResult.EventType) > 0 {
@@ -295,6 +298,9 @@ func SimulateGame(
 				On1b:            homeBaseState[0] != 0,
 				On2b:            homeBaseState[1] != 0,
 				On3b:            homeBaseState[2] != 0,
+				RunnerOn1bID:    homeBaseState[0],
+				RunnerOn2bID:    homeBaseState[1],
+				RunnerOn3bID:    homeBaseState[2],
 			}}, []models.SimData{simData})
 
 			atBatNumber++
@@ -308,7 +314,7 @@ func SimulateGame(
 
 			for _, paResult := range homePaResult {
 				AppendPlateAppearanceBotResult(paResult, awayScore, homeScore, atBatNumber, inning, topOuts, homeBaseState)
-				AppendGameResult(&gameRes, paResult)
+				AppendGameResult(&gameRes, paResult, homeBatter.PlayerId, rbi)
 
 				if len(paResult.BatterId) > 0 && len(paResult.EventType) > 0 {
 					batterRuns := 0
@@ -465,7 +471,7 @@ func AppendPlateAppearanceBotResult(paResult models.PlateAppearanceResult, awayS
 	paResult.On3b = append(paResult.On3b, homeBaseState[2] != 0)
 }
 
-func AppendGameResult(gameRes *models.GameResult, paResult models.PlateAppearanceResult) {
+func AppendGameResult(gameRes *models.GameResult, paResult models.PlateAppearanceResult, rbiBatterID int, rbiCount int) {
 	gameRes.PAResult.PitcherGameYear = append(gameRes.PAResult.PitcherGameYear, paResult.PitcherGameYear...)
 	gameRes.PAResult.PitcherFullName = append(gameRes.PAResult.PitcherFullName, paResult.PitcherFullName...)
 	gameRes.PAResult.PitcherId = append(gameRes.PAResult.PitcherId, paResult.PitcherId...)
@@ -498,6 +504,13 @@ func AppendGameResult(gameRes *models.GameResult, paResult models.PlateAppearanc
 	gameRes.PAResult.On1b = append(gameRes.PAResult.On1b, paResult.On1b...)
 	gameRes.PAResult.On2b = append(gameRes.PAResult.On2b, paResult.On2b...)
 	gameRes.PAResult.On3b = append(gameRes.PAResult.On3b, paResult.On3b...)
+	gameRes.PAResult.RunnerOn1bID = append(gameRes.PAResult.RunnerOn1bID, paResult.RunnerOn1bID...)
+	gameRes.PAResult.RunnerOn2bID = append(gameRes.PAResult.RunnerOn2bID, paResult.RunnerOn2bID...)
+	gameRes.PAResult.RunnerOn3bID = append(gameRes.PAResult.RunnerOn3bID, paResult.RunnerOn3bID...)
+	for i := 0; i < len(paResult.PitcherId); i++ {
+		gameRes.PAResult.RbiBatterID = append(gameRes.PAResult.RbiBatterID, rbiBatterID)
+		gameRes.PAResult.RbiCount = append(gameRes.PAResult.RbiCount, rbiCount)
+	}
 }
 
 func postGameResults(gameRes []models.GameResult, season int, db *sql.DB) {
