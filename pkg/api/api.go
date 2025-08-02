@@ -20,16 +20,30 @@ import (
 )
 
 func corsMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+	allowed := map[string]bool{
+		"http://localhost:3000":       true,
+		"https://go-baseball.com":     true,
+		"https://www.go-baseball.com": true,
+		// add any other frontends here
+	}
 
-		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusOK)
-			return
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		origin := r.Header.Get("Origin")
+		if origin != "" && allowed[origin] {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Vary", "Origin")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+			// If you use cookies/session:
+			// w.Header().Set("Access-Control-Allow-Credentials", "true")
+			// If the client needs to read custom response headers:
+			// w.Header().Set("Access-Control-Expose-Headers", "X-Custom-Header")
 		}
 
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent) // 204
+			return
+		}
 		next.ServeHTTP(w, r)
 	})
 }

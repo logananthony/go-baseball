@@ -330,7 +330,7 @@ func SimulateGame(
 					// fmt.Println("runnersOn:", runnersOn)
 					// fmt.Println("usedPitchersHome:", usedPitchersHome)
 					// fmt.Println("Selected Pitcher: ", selected)
-					// fixed it
+					// fixed it!
 
 					if selected != nil {
 						homePitcher = selected[0]
