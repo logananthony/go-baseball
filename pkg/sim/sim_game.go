@@ -298,7 +298,7 @@ func SimulateGame(
 				if len(homePitcherLineup) > 0 {
 					homePitcherLineup = utils.FilterSliceSlices(homePitcherLineup, homePitcher)
 					if len(homePitcherLineup) > 0 {
-						runDiff := awayScore - homeScore // for homePitcher (home is pitching)
+						runDiff := homeScore - awayScore
 						runnersOn := utils.CountRunners(awayBaseState)
 
 						selected := utils.SelectBullpenPitcherLineup(
@@ -513,7 +513,7 @@ func SimulateGame(
 			if len(awayPitcherLineup) > 0 {
 				awayPitcherLineup = utils.FilterSliceSlices(awayPitcherLineup, awayPitcher)
 				if len(awayPitcherLineup) > 0 {
-					runDiff := homeScore - awayScore // for awayPitcher (away is pitching)
+					runDiff := awayScore - homeScore
 					runnersOn := utils.CountRunners(homeBaseState)
 
 					selected := utils.SelectBullpenPitcherLineup(
