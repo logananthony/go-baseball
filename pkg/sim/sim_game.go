@@ -106,6 +106,66 @@ func SimulateGame(
 	var pitcherPulledHome bool
 	var pitcherPulledAway bool
 
+	// Track per-game appearances and totals
+	appearedPitcher := make(map[int64]bool)
+	strikeoutsByPitcher := make(map[int64]int)
+	swstrByPitcher := make(map[int64]int) // ✅ was unused before; we’ll fill it
+
+	appearedBatter := make(map[int64]bool)
+	runsByBatter := make(map[int64]int)
+	rbiByBatter := make(map[int64]int)   // ✅ new
+	swstrByBatter := make(map[int64]int) // ✅ new
+
+	// Helper to append appearance-based events before returning
+	// Helper to append appearance-based events before returning
+	finalizeAppearanceEvents := func() {
+		// Pitchers: appeared but 0 Ks
+		for pid := range appearedPitcher {
+			if strikeoutsByPitcher[pid] == 0 {
+				pitcherEvents = append(pitcherEvents, models.PitcherEvent{
+					PitcherID: pid,
+					EventType: "appeared_no_k",
+				})
+			}
+			// ✅ Pitchers: appeared but 0 swinging strikes
+			if swstrByPitcher[pid] == 0 {
+				pitcherEvents = append(pitcherEvents, models.PitcherEvent{
+					PitcherID: pid,
+					EventType: "appeared_no_swstr",
+				})
+			}
+		}
+
+		// Batters: appeared but 0 runs (existing)
+		for bid := range appearedBatter {
+			if runsByBatter[bid] == 0 {
+				batterEvents = append(batterEvents, models.BatterEvent{
+					BatterID:  bid,
+					EventType: "appeared_no_run",
+					Runs:      0,
+				})
+			}
+
+			// ✅ Batters: appeared but 0 RBI
+			if rbiByBatter[bid] == 0 {
+				batterEvents = append(batterEvents, models.BatterEvent{
+					BatterID:  bid,
+					EventType: "appeared_no_rbi",
+					RBI:       0,
+				})
+			}
+
+			// ✅ Batters: appeared but 0 swinging strikes
+			if swstrByBatter[bid] == 0 {
+				batterEvents = append(batterEvents, models.BatterEvent{
+					BatterID:   bid,
+					EventType:  "appeared_no_swstr",
+					SwStrCount: 0,
+				})
+			}
+		}
+	}
+
 	for {
 
 		topOuts := 0
@@ -151,36 +211,85 @@ func SimulateGame(
 			awayScore, awayBaseState, topOuts, homePitchCount, scoredRuns, rbi = ProcessPlateAppearance(
 				awayPaResult, awayScore, awayBaseState, topOuts, homePitchCount,
 			)
+
+			// After ProcessPlateAppearance(...)
 			for _, id := range scoredRuns {
-				runEvents = append(runEvents, models.RunEvent{RunnerID: int64(id)})
+				// keep: internal per-game tally
+				runsByBatter[int64(id)]++
+				// add: emit event for API aggregation
+				runEvents = append(runEvents, models.RunEvent{
+					RunnerID: int64(id), // only RunnerID, unless you add fields to the struct
+				})
+			}
+
+			// credit total runs for whoever scored in this PA
+			for _, id := range scoredRuns {
+				runsByBatter[int64(id)]++
+			}
+			// ✅ mark batter appeared using the last batter id from the PA
+			if len(awayPaResult) > 0 && len(awayPaResult[0].BatterId) > 0 {
+				lastBatterID := int64(awayPaResult[0].BatterId[len(awayPaResult[0].BatterId)-1])
+				appearedBatter[lastBatterID] = true
 			}
 
 			for _, paResult := range awayPaResult {
+
 				AppendPlateAppearanceTopResult(paResult, awayScore, homeScore, atBatNumber, inning, topOuts, awayBaseState)
 				AppendGameResult(&gameRes, paResult, awayBatter.PlayerId, rbi)
 
-				// COLLECT BATTER EVENTS
+				// mark pitcher appeared (use last pitcher id for this PA)
+				if len(paResult.PitcherId) > 0 {
+					pid := int64(paResult.PitcherId[len(paResult.PitcherId)-1])
+					appearedPitcher[pid] = true
+				}
+
 				if len(paResult.BatterId) > 0 && len(paResult.EventType) > 0 {
+					lastBatterID := int64(paResult.BatterId[len(paResult.BatterId)-1])
+					lastPitcherID := int64(paResult.PitcherId[len(paResult.PitcherId)-1])
+
 					batterRuns := 0
 					for _, id := range scoredRuns {
-						if id == awayBatter.PlayerId {
+						if int64(id) == lastBatterID {
 							batterRuns++
 						}
 					}
+
+					// ✅ count swinging strikes in this PA
+					// thisPASwStr := int64(utils.IsSwingingStrikeCount(paResult.IsSwing, paResult.IsStrike))
+					thisPASwStr := "swinging_strike"
+
+					swStrCount := 0
+					for _, f := range paResult.IsContact {
+						if f == thisPASwStr {
+							swStrCount++
+						}
+					}
+
 					batterEvents = append(batterEvents, models.BatterEvent{
-						BatterID:  int64(paResult.BatterId[0]),
-						EventType: paResult.EventType[len(paResult.EventType)-1],
-						Runs:      batterRuns,
-						RBI:       rbi,
+						BatterID:   lastBatterID,
+						PitcherID:  lastPitcherID,
+						EventType:  paResult.EventType[len(paResult.EventType)-1],
+						Runs:       batterRuns,
+						RBI:        rbi,
+						SwStrCount: swStrCount, // ✅ include per-PA value
+						PitchCount: len(paResult.BatterId),
 					})
+
+					// ✅ accumulate per-game tallies
+					rbiByBatter[lastBatterID] += rbi
+					swstrByBatter[lastBatterID] += swStrCount
+
+					// ✅ also attribute swinging strikes to the pitcher
+					swstrByPitcher[lastPitcherID] += swStrCount
 				}
-				// COLLECT PITCHER EVENTS
-				if len(paResult.PitcherId) > 0 && len(paResult.EventType) > 0 && paResult.EventType[len(paResult.EventType)-1] == "strikeout" {
-					pitcherEvents = append(pitcherEvents, models.PitcherEvent{
-						PitcherID: int64(paResult.PitcherId[0]),
-						EventType: "strikeout",
-					})
+
+				// strikeout event for pitchers (use last pitcher id)
+				if len(paResult.EventType) > 0 && paResult.EventType[len(paResult.EventType)-1] == "strikeout" && len(paResult.PitcherId) > 0 {
+					pid := int64(paResult.PitcherId[len(paResult.PitcherId)-1])
+					strikeoutsByPitcher[pid]++
+					pitcherEvents = append(pitcherEvents, models.PitcherEvent{PitcherID: pid, EventType: "strikeout"})
 				}
+
 			}
 
 			usedPitchersHome := map[int]bool{}
@@ -274,6 +383,7 @@ func SimulateGame(
 			if outcomeMode == "pbp" {
 				postGameResults([]models.GameResult{gameRes}, season, db)
 			}
+			finalizeAppearanceEvents()
 			fmt.Println("Home team wins:", homeScore, "-", awayScore)
 			return homeScore, awayScore, homeTeam, awayTeam, homeStartingPitcherName, awayStartingPitcherName, gameDate, batterEvents, pitcherEvents, runEvents
 		}
@@ -308,34 +418,80 @@ func SimulateGame(
 			homeScore, homeBaseState, botOuts, awayPitchCount, scoredRuns, rbi = ProcessPlateAppearance(
 				homePaResult, homeScore, homeBaseState, botOuts, awayPitchCount,
 			)
+
+			// After ProcessPlateAppearance(...)
 			for _, id := range scoredRuns {
-				runEvents = append(runEvents, models.RunEvent{RunnerID: int64(id)})
+				// keep: internal per-game tally
+				runsByBatter[int64(id)]++
+				// add: emit event for API aggregation
+				runEvents = append(runEvents, models.RunEvent{
+					RunnerID: int64(id), // only RunnerID, unless you add fields to the struct
+				})
+			}
+
+			for _, id := range scoredRuns {
+				runsByBatter[int64(id)]++
+			}
+			// mark batter appeared
+			if len(homePaResult) > 0 && len(homePaResult[0].BatterId) > 0 {
+				appearedBatter[int64(homePaResult[0].BatterId[len(homePaResult[0].BatterId)-1])] = true
 			}
 
 			for _, paResult := range homePaResult {
-				AppendPlateAppearanceBotResult(paResult, awayScore, homeScore, atBatNumber, inning, topOuts, homeBaseState)
+				AppendPlateAppearanceBotResult(paResult, awayScore, homeScore, atBatNumber, inning, botOuts, homeBaseState)
 				AppendGameResult(&gameRes, paResult, homeBatter.PlayerId, rbi)
 
+				// mark pitcher appeared (use last pitcher id for this PA)
+				if len(paResult.PitcherId) > 0 {
+					pid := int64(paResult.PitcherId[len(paResult.PitcherId)-1])
+					appearedPitcher[pid] = true
+				}
+
 				if len(paResult.BatterId) > 0 && len(paResult.EventType) > 0 {
+					lastBatterID := int64(paResult.BatterId[len(paResult.BatterId)-1])
+					lastPitcherID := int64(paResult.PitcherId[len(paResult.PitcherId)-1])
+
 					batterRuns := 0
 					for _, id := range scoredRuns {
-						if id == homeBatter.PlayerId {
+						if int64(id) == lastBatterID {
 							batterRuns++
 						}
 					}
+
+					thisPASwStr := "swinging_strike"
+
+					swStrCount := 0
+					for _, f := range paResult.IsContact {
+						if f == thisPASwStr {
+							swStrCount++
+						}
+					}
+
 					batterEvents = append(batterEvents, models.BatterEvent{
-						BatterID:  int64(paResult.BatterId[0]),
-						EventType: paResult.EventType[len(paResult.EventType)-1],
-						Runs:      batterRuns,
-						RBI:       rbi,
+						BatterID:   lastBatterID,
+						PitcherID:  lastPitcherID,
+						EventType:  paResult.EventType[len(paResult.EventType)-1],
+						Runs:       batterRuns,
+						RBI:        rbi,
+						SwStrCount: swStrCount, // ✅ include per-PA value
+						PitchCount: len(paResult.BatterId),
 					})
+
+					// ✅ accumulate per-game tallies
+					rbiByBatter[lastBatterID] += rbi
+					swstrByBatter[lastBatterID] += swStrCount
+
+					// ✅ also attribute swinging strikes to the pitcher
+					swstrByPitcher[lastPitcherID] += swStrCount
 				}
-				if len(paResult.PitcherId) > 0 && len(paResult.EventType) > 0 && paResult.EventType[len(paResult.EventType)-1] == "strikeout" {
-					pitcherEvents = append(pitcherEvents, models.PitcherEvent{
-						PitcherID: int64(paResult.PitcherId[0]),
-						EventType: "strikeout",
-					})
+
+				// strikeout event for pitchers (use last pitcher id)
+				if len(paResult.EventType) > 0 && paResult.EventType[len(paResult.EventType)-1] == "strikeout" && len(paResult.PitcherId) > 0 {
+					pid := int64(paResult.PitcherId[len(paResult.PitcherId)-1])
+					strikeoutsByPitcher[pid]++
+					pitcherEvents = append(pitcherEvents, models.PitcherEvent{PitcherID: pid, EventType: "strikeout"})
 				}
+
 			}
 
 			// spew.Dump(gameRes.PAResult)
@@ -343,6 +499,7 @@ func SimulateGame(
 
 			if inning >= 9 && homeScore > awayScore {
 				fmt.Println("Home team wins (walk-off):", homeScore, "-", awayScore)
+				finalizeAppearanceEvents()
 				if outcomeMode == "pbp" {
 					postGameResults([]models.GameResult{gameRes}, season, db)
 				}
@@ -436,6 +593,7 @@ func SimulateGame(
 		// If 9 or later and not tied, game ends
 		if inning >= 9 && homeScore != awayScore {
 			fmt.Println("Away team wins:", awayScore, "-", homeScore)
+			finalizeAppearanceEvents()
 			if outcomeMode == "pbp" {
 				postGameResults([]models.GameResult{gameRes}, season, db)
 			}

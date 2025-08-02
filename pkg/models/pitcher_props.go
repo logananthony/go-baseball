@@ -7,6 +7,7 @@ type PitcherProps struct {
 	GamePk         int64
 	PitcherName    string
 	GameDate       time.Time
+	Team           string
 	NumSimulations int
 
 	// Strikeout lines
@@ -48,4 +49,10 @@ type PitcherProps struct {
 	AvgStrikeouts float64
 	IqrStrikeouts float64
 	Q80Strikeouts float64
+
+	StrikeoutPct   float64
+	WalkPct        float64
+	SwingingStrPct float64
+
+	IP string
 }

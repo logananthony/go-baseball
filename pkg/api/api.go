@@ -73,10 +73,14 @@ func (s *APIServer) queryPropsTable(
 
 	// Pacific-date filter
 	if gd := q.Get("gamedate"); gd != "" {
-		// cast through UTC → PT exactly like /agg-core
-		where = append(where, fmt.Sprintf("gamedate::date = $%d", argID))
-		args = append(args, gd)
-		argID++
+		startUTC, endUTC, err := pacificDayRangeUTC(gd)
+		if err != nil {
+			http.Error(w, "invalid gamedate", http.StatusBadRequest)
+			return
+		}
+		where = append(where, fmt.Sprintf("gamedate >= $%d AND gamedate < $%d", argID, argID+1))
+		args = append(args, startUTC, endUTC)
+		argID += 2
 	}
 
 	sqlParts := []string{fmt.Sprintf("SELECT * FROM %s", table)}
@@ -252,8 +256,13 @@ func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 			Order int
 			Team  string
 		}{}
+
+		pitcherMeta := map[int64]struct {
+			Name string
+			Team string
+		}{}
 		// Build pitcher metadata (pitcherID -> name)
-		pitcherMeta := map[int64]string{}
+		// pitcherMeta := map[int64]string{}
 
 		// Loop through BOTH lineups (home and away)
 		for _, b := range append(homeLineup, awayLineup...) {
@@ -267,9 +276,62 @@ func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 				Order: b.BattingOrder,
 				Team:  b.Team,
 			}
-			// Pitchers
-			pitcherMeta[int64(b.HomePitcherId)] = b.HomePitcherName
-			pitcherMeta[int64(b.AwayPitcherId)] = b.AwayPitcherName
+			if b.Team == "home" {
+				if _, ok := pitcherMeta[int64(b.HomePitcherId)]; !ok {
+					pitcherMeta[int64(b.HomePitcherId)] = struct{ Name, Team string }{
+						Name: b.HomePitcherName, Team: "home",
+					}
+				}
+			} else {
+				if _, ok := pitcherMeta[int64(b.AwayPitcherId)]; !ok {
+					pitcherMeta[int64(b.AwayPitcherId)] = struct{ Name, Team string }{
+						Name: b.AwayPitcherName, Team: "away",
+					}
+				}
+			}
+		}
+
+		playerByID := make(map[int]models.MLBPlayerInfo, len(simData.PlayerInfo))
+		for i := range simData.PlayerInfo {
+			if simData.PlayerInfo[i].ID != nil {
+				playerByID[*simData.PlayerInfo[i].ID] = simData.PlayerInfo[i]
+			}
+		}
+
+		// pitcherMeta := map[int64]struct{ Name, Team string }{}
+
+		for _, side := range []struct {
+			o     *models.BullpenOrder
+			label string
+		}{
+			{homeBullpen, "home"},
+			{awayBullpen, "away"},
+		} {
+			if side.o == nil {
+				continue
+			}
+			for _, id := range []int{side.o.PlayerID1, side.o.PlayerID2, side.o.PlayerID3, side.o.PlayerID4, side.o.PlayerID5, side.o.PlayerID6, side.o.PlayerID7, side.o.PlayerID8} {
+				if id == 0 {
+					continue
+				}
+				if p, ok := playerByID[id]; ok {
+					name := ""
+					if p.FullName != nil && *p.FullName != "" {
+						name = *p.FullName
+					} else {
+						if p.FirstName != nil {
+							name += *p.FirstName
+						}
+						if p.LastName != nil {
+							if name != "" {
+								name += " "
+							}
+							name += *p.LastName
+						}
+					}
+					pitcherMeta[int64(id)] = struct{ Name, Team string }{name, side.label} // "home"/"away"
+				}
+			}
 		}
 
 		if err != nil {
@@ -288,21 +350,6 @@ func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 		const maxConcurrentSims = 8
 		sem := make(chan struct{}, maxConcurrentSims)
 		var wg sync.WaitGroup
-
-		// type BatterEvent struct {
-		// 	BatterID  int64
-		// 	EventType string
-		// }
-		// type PitcherEvent struct {
-		// 	PitcherID int64
-		// 	EventType string
-		// }
-		// type SimOutcome struct {
-		// 	HomeScore     int
-		// 	AwayScore     int
-		// 	BatterEvents  []BatterEvent
-		// 	PitcherEvents []PitcherEvent
-		// }
 
 		var (
 			homeTeam, awayTeam, homePitcherName, awayPitcherName string
@@ -528,13 +575,22 @@ func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 		batterHomerunCounts := map[int64][]int{}
 		batterRunCounts := map[int64][]int{}
 		batterRBICounts := map[int64][]int{}
+
+		// Pitcher per-sim distributions (derived from BatterEvents)
 		pitcherKCounts := map[int64][]int{}
+		pitcherOutCounts := map[int64][]int{}
+		pitcherBBCounts := map[int64][]int{}
+		pitcherHitCounts := map[int64][]int{}
+		pitcherSwStrCounts := map[int64][]int{}
+		pitcherPitchCounts := map[int64][]int{}
 
 		// --- Build stat counts per player for each sim ---
 		for _, sim := range outcomes {
+			// ---- Batter aggregation ----
 			batterCountMap := map[int64]map[string]int{}
 			rbiMap := map[int64]int{}
 			runMap := map[int64]int{}
+
 			for _, e := range sim.BatterEvents {
 				if batterCountMap[e.BatterID] == nil {
 					batterCountMap[e.BatterID] = map[string]int{}
@@ -566,20 +622,45 @@ func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 				batterRunCounts[id] = append(batterRunCounts[id], v)
 			}
 
-			// fmt.Println(batterRunCounts)
+			// ---- Pitcher aggregation (derive from BatterEvents) ----
+			kPerSim := map[int64]int{}
+			outsPerSim := map[int64]int{}
+			walksPerSim := map[int64]int{}
+			hitsPerSim := map[int64]int{}
+			appeared := map[int64]bool{}
+			swstrPerSim := map[int64]int{}
+			pitchesPerSim := map[int64]int{}
 
-			pitcherCountMap := map[int64]int{}
-			for _, e := range sim.PitcherEvents {
-				if e.EventType == "strikeout" {
-					pitcherCountMap[e.PitcherID]++
+			for _, e := range sim.BatterEvents {
+				pid := e.PitcherID
+				appeared[pid] = true
+
+				switch e.EventType {
+				case "strikeout":
+					kPerSim[pid]++
+					outsPerSim[pid]++ // strikeout counts as an out
+				case "out":
+					outsPerSim[pid]++
+				case "walk":
+					walksPerSim[pid]++
+				case "single", "double", "triple", "home_run":
+					hitsPerSim[pid]++
 				}
+
+				swstrPerSim[e.PitcherID] += int(e.SwStrCount)
+				pitchesPerSim[e.PitcherID] += int(e.PitchCount)
 			}
-			for pitcherID, kCount := range pitcherCountMap {
-				pitcherKCounts[pitcherID] = append(pitcherKCounts[pitcherID], kCount)
+
+			// Append one value per appeared pitcher (zeros if nothing recorded this sim)
+			for pid := range appeared {
+				pitcherKCounts[pid] = append(pitcherKCounts[pid], kPerSim[pid])
+				pitcherOutCounts[pid] = append(pitcherOutCounts[pid], outsPerSim[pid])
+				pitcherBBCounts[pid] = append(pitcherBBCounts[pid], walksPerSim[pid])
+				pitcherHitCounts[pid] = append(pitcherHitCounts[pid], hitsPerSim[pid])
+				pitcherSwStrCounts[pid] = append(pitcherSwStrCounts[pid], swstrPerSim[pid])
+				pitcherPitchCounts[pid] = append(pitcherPitchCounts[pid], pitchesPerSim[pid])
 			}
 		}
-
-		// If you want batter metadata (name, team, etc.), collect them from lineup info here (optional)
 
 		// --- Upsert batter props ---
 		for batterID, hitCounts := range batterHitCounts {
@@ -696,36 +777,65 @@ func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 		}
 
 		// --- Upsert pitcher props ---
-		for pitcherID, kCounts := range pitcherKCounts {
-			// For each K threshold (2.5, 3.5, ... 12.5), get prob and CIs
-			// over_2_5 means >=3, over_3_5 means >=4, etc
-			prob25K, l25K, u25K := getKProp(kCounts, 3)
-			prob35K, l35K, u35K := getKProp(kCounts, 4)
-			prob45K, l45K, u45K := getKProp(kCounts, 5)
-			prob55K, l55K, u55K := getKProp(kCounts, 6)
-			prob65K, l65K, u65K := getKProp(kCounts, 7)
-			prob75K, l75K, u75K := getKProp(kCounts, 8)
-			prob85K, l85K, u85K := getKProp(kCounts, 9)
-			prob95K, l95K, u95K := getKProp(kCounts, 10)
-			prob105K, l105K, u105K := getKProp(kCounts, 11)
-			prob115K, l115K, u115K := getKProp(kCounts, 12)
-			prob125K, l125K, u125K := getKProp(kCounts, 13)
+		for pitcherID, kSlice := range pitcherKCounts {
+			// K thresholds (>=3,4,...,13)
+			prob25K, l25K, u25K := getKProp(kSlice, 3)
+			prob35K, l35K, u35K := getKProp(kSlice, 4)
+			prob45K, l45K, u45K := getKProp(kSlice, 5)
+			prob55K, l55K, u55K := getKProp(kSlice, 6)
+			prob65K, l65K, u65K := getKProp(kSlice, 7)
+			prob75K, l75K, u75K := getKProp(kSlice, 8)
+			prob85K, l85K, u85K := getKProp(kSlice, 9)
+			prob95K, l95K, u95K := getKProp(kSlice, 10)
+			prob105K, l105K, u105K := getKProp(kSlice, 11)
+			prob115K, l115K, u115K := getKProp(kSlice, 12)
+			prob125K, l125K, u125K := getKProp(kSlice, 13)
 
-			countsFloat := make([]float64, len(kCounts))
-			for i, k := range kCounts {
-				countsFloat[i] = float64(k)
+			// Dispersion stats
+			f := make([]float64, len(kSlice))
+			for i, k := range kSlice {
+				f[i] = float64(k)
 			}
-			avgK := utils.Mean(countsFloat)
-			iqrK := utils.QuantileWidth(countsFloat, 0.25, 0.75)
-			q80K := utils.QuantileWidth(countsFloat, 0.10, 0.90)
+			avgK := utils.Mean(f)
+			iqrK := utils.QuantileWidth(f, 0.25, 0.75)
+			q80K := utils.QuantileWidth(f, 0.10, 0.90)
 
-			name := pitcherMeta[pitcherID]
+			// Totals for rate stats
+			outSlice := pitcherOutCounts[pitcherID]
+			bbSlice := pitcherBBCounts[pitcherID]
+			hitSlice := pitcherHitCounts[pitcherID]
+			swstrSlice := pitcherSwStrCounts[pitcherID]
+			pitchCountSlice := pitcherPitchCounts[pitcherID]
+			// fmt.Println(pitchCountSlice)
+
+			totalSwStr := utils.Sum(swstrSlice)
+			totalPitches := utils.Sum(pitchCountSlice)
+
+			totalAB := utils.Sum(hitSlice) + utils.Sum(kSlice) + utils.Sum(outSlice)
+			totalPA := totalAB + utils.Sum(bbSlice)
+
+			totalOuts := int(utils.Sum(kSlice) + utils.Sum(outSlice))
+
+			pitcherKPct := 0.0
+			pitcherBBPct := 0.0
+			pitcherSwStrPct := 0.0
+			inningsPitched := utils.ConvertOutsToInnings(totalOuts)
+			// var inningsPitched str
+			if totalPA > 0 {
+				pitcherKPct = float64(utils.Sum(kSlice)) / float64(totalPA)
+				pitcherBBPct = float64(utils.Sum(bbSlice)) / float64(totalPA)
+				pitcherSwStrPct = float64(totalSwStr) / float64(totalPitches)
+
+			}
+
+			meta := pitcherMeta[pitcherID]
 			pp := models.PitcherProps{
 				PitcherID:      pitcherID,
 				GamePk:         int64(data.GamePk),
-				NumSimulations: len(kCounts),
-				PitcherName:    name,
+				NumSimulations: len(kSlice),
+				PitcherName:    meta.Name,
 				GameDate:       gameDate,
+				Team:           meta.Team,
 
 				ProbOver25K: prob25K, ProbOver35K: prob35K, ProbOver45K: prob45K,
 				ProbOver55K: prob55K, ProbOver65K: prob65K, ProbOver75K: prob75K,
@@ -743,8 +853,15 @@ func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 				Over115KLower95: l115K, Over115KUpper95: u115K,
 				Over125KLower95: l125K, Over125KUpper95: u125K,
 				AvgStrikeouts: avgK, IqrStrikeouts: iqrK, Q80Strikeouts: q80K,
+
+				StrikeoutPct:   pitcherKPct,
+				WalkPct:        pitcherBBPct,
+				SwingingStrPct: pitcherSwStrPct,
+				IP:             inningsPitched,
 			}
-			_ = poster.InsertPitcherProps(s.db, pp)
+			if err := poster.InsertPitcherProps(s.db, pp); err != nil {
+				log.Printf("InsertPitcherProps error: %v", err)
+			}
 		}
 
 		// --- UPSERT TO DB ---
@@ -811,6 +928,22 @@ func (s *APIServer) PostJobStatus(w http.ResponseWriter, req *http.Request) {
 		"status": status,
 		"result": res,
 	})
+}
+
+func pacificDayRangeUTC(isoDate string) (startUTC, endUTC time.Time, err error) {
+	loc, err := time.LoadLocation("America/Los_Angeles")
+	if err != nil {
+		return time.Time{}, time.Time{}, err
+	}
+	// Parse YYYY-MM-DD as a *local* Pacific midnight
+	t, err := time.ParseInLocation("2006-01-02", isoDate, loc)
+	if err != nil {
+		return time.Time{}, time.Time{}, err
+	}
+	start := t
+	end := t.Add(24 * time.Hour)
+
+	return start.UTC(), end.UTC(), nil
 }
 
 func (s *APIServer) GetGameResults(w http.ResponseWriter, req *http.Request) {
@@ -1017,9 +1150,14 @@ func (s *APIServer) GetAggCore(w http.ResponseWriter, req *http.Request) {
 	}
 
 	if gameDateStr != "" {
-		where = append(where, fmt.Sprintf("gamedate::date = $%d", argID))
-		args = append(args, gameDateStr)
-		argID++
+		startUTC, endUTC, err := pacificDayRangeUTC(gameDateStr)
+		if err != nil {
+			http.Error(w, "invalid gamedate", http.StatusBadRequest)
+			return
+		}
+		where = append(where, fmt.Sprintf("gamedate >= $%d AND gamedate < $%d", argID, argID+1))
+		args = append(args, startUTC, endUTC)
+		argID += 2
 	}
 
 	if len(where) > 0 {
