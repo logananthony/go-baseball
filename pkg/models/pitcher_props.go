@@ -54,5 +54,11 @@ type PitcherProps struct {
 	WalkPct        float64
 	SwingingStrPct float64
 
+	TotalStrikeouts       int
+	TotalWalks            int
+	TotalPlateAppearances int
+	TotalSwingingStrikes  int
+	TotalPitches          int
+
 	IP string
 }
