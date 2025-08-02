@@ -20,7 +20,8 @@ func InsertPitcherProps(db *sql.DB, prop models.PitcherProps) error {
 		"over_10_5_k_lower95", "over_10_5_k_upper95", "over_11_5_k_lower95", "over_11_5_k_upper95",
 		"over_12_5_k_lower95", "over_12_5_k_upper95",
 		"avg_strikeouts", "iqr_strikeouts", "q80_strikeouts", "team", "strikeout_pct", "walk_pct",
-		"swstr_pct", "innings_pitched",
+		"swstr_pct", "innings_pitched", "total_strikeouts", "total_walks", "total_plate_appearances",
+		"total_swinging_strikes", "total_pitches",
 	}
 
 	values := []interface{}{
@@ -34,7 +35,8 @@ func InsertPitcherProps(db *sql.DB, prop models.PitcherProps) error {
 		prop.Over105KLower95, prop.Over105KUpper95, prop.Over115KLower95, prop.Over115KUpper95,
 		prop.Over125KLower95, prop.Over125KUpper95,
 		prop.AvgStrikeouts, prop.IqrStrikeouts, prop.Q80Strikeouts, prop.Team, prop.StrikeoutPct, prop.WalkPct,
-		prop.SwingingStrPct, prop.IP,
+		prop.SwingingStrPct, prop.IP, prop.TotalStrikeouts, prop.TotalWalks, prop.TotalPlateAppearances,
+		prop.TotalSwingingStrikes, prop.TotalPitches,
 	}
 
 	placeholders := make([]string, len(values))

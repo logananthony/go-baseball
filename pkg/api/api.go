@@ -688,12 +688,18 @@ func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 			for _, h := range hitCounts {
 				totalHits += h
 			}
+			totalSingles := utils.Sum(singleCounts)
+			totalDoubles := utils.Sum(doubleCounts)
+			totalTriples := utils.Sum(tripleCounts)
+			totalHR := utils.Sum(hrCounts)
+			totalStrikeouts := utils.Sum(kCounts)
+			totalWalks := utils.Sum(bbCounts)
 
 			avgRuns := totalRuns / float64(body.NSims)
 			// avgRBI := totalRBI / float64(body.NSims)
 
 			totalAtBats := utils.Sum(hitCounts) + utils.Sum(kCounts) + utils.Sum(outCounts)
-			totalPlateAppearances := utils.Sum(hitCounts) + utils.Sum(kCounts) + utils.Sum(outCounts) + utils.Sum(bbCounts)
+			totalPlateAppearances := totalAtBats + totalWalks
 
 			battingAvg := 0.0
 			sluggingPct := 0.0
@@ -705,14 +711,14 @@ func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 
 				onBasePct = (float64(totalHits) + float64(utils.Sum(bbCounts))) / float64(totalAtBats)
 
-				kPct = (float64(utils.Sum(kCounts))) / float64(totalPlateAppearances)
-				bbPct = (float64(utils.Sum(bbCounts))) / float64(totalPlateAppearances)
+				kPct = float64(totalStrikeouts) / float64(totalPlateAppearances)
+				bbPct = float64(totalWalks) / float64(totalPlateAppearances)
 
 				totalBases :=
-					1*utils.Sum(singleCounts) +
-						2*utils.Sum(doubleCounts) +
-						3*utils.Sum(tripleCounts) +
-						4*utils.Sum(hrCounts)
+					1*totalSingles +
+						2*totalDoubles +
+						3*totalTriples +
+						4*totalHR
 				sluggingPct = float64(totalBases) / float64(totalAtBats)
 			}
 
@@ -772,6 +778,16 @@ func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 				OnBasePct:    onBasePct,
 				StrikeoutPct: kPct,
 				WalkPct:      bbPct,
+
+				TotalHits:             totalHits,
+				TotalSingles:          totalSingles,
+				TotalDoubles:          totalDoubles,
+				TotalTriples:          totalTriples,
+				TotalHomeruns:         totalHR,
+				TotalPlateAppearances: totalPlateAppearances,
+				TotalAtBats:           totalAtBats,
+				TotalStrikeouts:       totalStrikeouts,
+				TotalWalks:            totalWalks,
 			}
 			_ = poster.InsertBatterProps(s.db, bp)
 		}
@@ -806,26 +822,25 @@ func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 			hitSlice := pitcherHitCounts[pitcherID]
 			swstrSlice := pitcherSwStrCounts[pitcherID]
 			pitchCountSlice := pitcherPitchCounts[pitcherID]
-			// fmt.Println(pitchCountSlice)
 
+			totalStrikeouts := utils.Sum(kSlice)
+			totalWalks := utils.Sum(bbSlice)
 			totalSwStr := utils.Sum(swstrSlice)
 			totalPitches := utils.Sum(pitchCountSlice)
 
-			totalAB := utils.Sum(hitSlice) + utils.Sum(kSlice) + utils.Sum(outSlice)
-			totalPA := totalAB + utils.Sum(bbSlice)
+			totalAB := utils.Sum(hitSlice) + totalStrikeouts + utils.Sum(outSlice)
+			totalPA := totalAB + totalWalks
 
-			totalOuts := int(utils.Sum(kSlice) + utils.Sum(outSlice))
+			totalOuts := int(totalStrikeouts + utils.Sum(outSlice))
 
 			pitcherKPct := 0.0
 			pitcherBBPct := 0.0
 			pitcherSwStrPct := 0.0
 			inningsPitched := utils.ConvertOutsToInnings(totalOuts)
-			// var inningsPitched str
 			if totalPA > 0 {
-				pitcherKPct = float64(utils.Sum(kSlice)) / float64(totalPA)
-				pitcherBBPct = float64(utils.Sum(bbSlice)) / float64(totalPA)
+				pitcherKPct = float64(totalStrikeouts) / float64(totalPA)
+				pitcherBBPct = float64(totalWalks) / float64(totalPA)
 				pitcherSwStrPct = float64(totalSwStr) / float64(totalPitches)
-
 			}
 
 			meta := pitcherMeta[pitcherID]
@@ -854,10 +869,15 @@ func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 				Over125KLower95: l125K, Over125KUpper95: u125K,
 				AvgStrikeouts: avgK, IqrStrikeouts: iqrK, Q80Strikeouts: q80K,
 
-				StrikeoutPct:   pitcherKPct,
-				WalkPct:        pitcherBBPct,
-				SwingingStrPct: pitcherSwStrPct,
-				IP:             inningsPitched,
+				StrikeoutPct:          pitcherKPct,
+				WalkPct:               pitcherBBPct,
+				SwingingStrPct:        pitcherSwStrPct,
+				TotalStrikeouts:       totalStrikeouts,
+				TotalWalks:            totalWalks,
+				TotalPlateAppearances: totalPA,
+				TotalSwingingStrikes:  totalSwStr,
+				TotalPitches:          totalPitches,
+				IP:                    inningsPitched,
 			}
 			if err := poster.InsertPitcherProps(s.db, pp); err != nil {
 				log.Printf("InsertPitcherProps error: %v", err)

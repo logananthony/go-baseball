@@ -72,6 +72,16 @@ type BatterProps struct {
 	StrikeoutPct          float64
 	WalkPct               float64
 
+	TotalHits             int
+	TotalSingles          int
+	TotalDoubles          int
+	TotalTriples          int
+	TotalHomeruns         int
+	TotalPlateAppearances int
+	TotalAtBats           int
+	TotalStrikeouts       int
+	TotalWalks            int
+
 	// Runs scored
 	ProbOver05Runs    float64
 	ProbOver15Runs    float64
