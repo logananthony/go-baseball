@@ -22,12 +22,12 @@ func InsertBatterProps(db *sql.DB, prop models.BatterProps) error {
 		"prob_over_0_5_homeruns", "prob_over_1_5_homeruns", "over_0_5_homeruns_lower95", "over_0_5_homeruns_upper95",
 		"over_1_5_homeruns_lower95", "over_1_5_homeruns_upper95", "avg_homeruns", "iqr_homeruns", "q80_homeruns",
 		"batting_avg", "slugging_pct", "on_base_pct", "strikeout_pct", "walk_pct",
-		"total_hits", "total_singles", "total_doubles", "total_triples", "total_homeruns",
-		"total_plate_appearances", "total_at_bats", "total_strikeouts", "total_walks",
 		"prob_over_0_5_runs", "prob_over_1_5_runs", "over_0_5_runs_lower95", "over_0_5_runs_upper95",
 		"over_1_5_runs_lower95", "over_1_5_runs_upper95", "avg_runs", "iqr_runs", "q80_runs",
 		"prob_over_0_5_rbi", "prob_over_1_5_rbi", "over_0_5_rbi_lower95", "over_0_5_rbi_upper95",
 		"over_1_5_rbi_lower95", "over_1_5_rbi_upper95", "avg_rbi", "iqr_rbi", "q80_rbi",
+		"total_hits", "total_singles", "total_doubles", "total_triples", "total_homeruns",
+		"total_plate_appearances", "total_at_bats", "total_strikeouts", "total_walks",
 	}
 
 	values := []interface{}{
@@ -43,30 +43,47 @@ func InsertBatterProps(db *sql.DB, prop models.BatterProps) error {
 		prop.ProbOver05Homeruns, prop.ProbOver15Homeruns, prop.Over05HomerunsLower95, prop.Over05HomerunsUpper95,
 		prop.Over15HomerunsLower95, prop.Over15HomerunsUpper95, prop.AvgHomeruns, prop.IqrHomeruns, prop.Q80Homeruns,
 		prop.BattingAvg, prop.SluggingPct, prop.OnBasePct, prop.StrikeoutPct, prop.WalkPct,
-		prop.TotalHits, prop.TotalSingles, prop.TotalDoubles, prop.TotalTriples, prop.TotalHomeruns,
-		prop.TotalPlateAppearances, prop.TotalAtBats, prop.TotalStrikeouts, prop.TotalWalks,
 		prop.ProbOver05Runs, prop.ProbOver15Runs, prop.Over05RunsLower95, prop.Over05RunsUpper95,
 		prop.Over15RunsLower95, prop.Over15RunsUpper95, prop.AvgRuns, prop.IqrRuns, prop.Q80Runs,
 		prop.ProbOver05RBI, prop.ProbOver15RBI, prop.Over05RBILower95, prop.Over05RBIUpper95,
 		prop.Over15RBILower95, prop.Over15RBIUpper95, prop.AvgRBI, prop.IqrRBI, prop.Q80RBI,
+		prop.TotalHits, prop.TotalSingles, prop.TotalDoubles, prop.TotalTriples, prop.TotalHomeruns,
+		prop.TotalPlateAppearances, prop.TotalAtBats, prop.TotalStrikeouts, prop.TotalWalks,
 	}
 
 	placeholders := make([]string, len(values))
 	for i := range values {
 		placeholders[i] = fmt.Sprintf("$%d", i+1)
 	}
-	updates := []string{}
-	for _, col := range columns[1:] { // skip PK
+
+	updates := make([]string, 0, len(columns))
+	for _, col := range columns {
+		if col == "batterid" || col == "gamepk" || col == "battingorder" || col == "team" {
+			continue
+		}
 		updates = append(updates, fmt.Sprintf("%s = EXCLUDED.%s", col, col))
 	}
 
 	sqlStr := fmt.Sprintf(
 		`INSERT INTO batter_props (%s) VALUES (%s)
-		ON CONFLICT (batterid, gamepk, battingorder, team) DO UPDATE SET %s`,
+		 ON CONFLICT (batterid, gamepk, battingorder, team) DO UPDATE SET %s`,
 		strings.Join(columns, ", "),
 		strings.Join(placeholders, ", "),
 		strings.Join(updates, ", "),
 	)
-	_, err := db.Exec(sqlStr, values...)
-	return err
+
+	// DEBUG: print a compact preview (avoid logging everything if too big)
+	// log.Printf("InsertBatterProps sql=%s", sqlStr)
+
+	res, err := db.Exec(sqlStr, values...)
+	if err != nil {
+		return fmt.Errorf("InsertBatterProps Exec error: %w", err)
+	}
+	ra, _ := res.RowsAffected()
+	if ra == 0 {
+		// This usually means an UPDATE happened but no values changed (same data),
+		// or the driver can't report it. Not fatal, but worth logging if unexpected.
+		// log.Printf("InsertBatterProps: rows affected = 0 (insert ignored or no-op update)")
+	}
+	return nil
 }

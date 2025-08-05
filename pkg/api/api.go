@@ -827,7 +827,7 @@ func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 				f[i] = float64(k)
 			}
 			avgK := utils.Mean(f)
-			fmt.Println("avgK:", avgK)
+			// fmt.Println("avgK:", kSlice)
 			iqrK := utils.QuantileWidth(f, 0.25, 0.75)
 			q80K := utils.QuantileWidth(f, 0.10, 0.90)
 
@@ -1166,86 +1166,89 @@ func (s *APIServer) GetAggCore(w http.ResponseWriter, req *http.Request) {
 	q := req.URL.Query()
 	gamePkStr := q.Get("gamePk")
 	limitStr := q.Get("limit")
-	gameDateStr := q.Get("gamedate") // e.g., "2025-06-28"
+	gameDate := q.Get("gamedate")
 
-	sqlParts := []string{"SELECT * FROM game_result_agg_core"}
-	args := []interface{}{}
-	where := []string{}
-	argID := 1
-
-	if gamePkStr != "" {
-		where = append(where, "gamepk = $"+strconv.Itoa(argID))
-		gp, err := strconv.Atoi(gamePkStr)
-		if err != nil {
-			http.Error(w, "invalid gamePk", http.StatusBadRequest)
-			return
-		}
-		args = append(args, gp)
-		argID++
-	}
-
-	if gameDateStr != "" {
-		startUTC, endUTC, err := pacificDayRangeUTC(gameDateStr)
-		if err != nil {
-			http.Error(w, "invalid gamedate", http.StatusBadRequest)
-			return
-		}
-		where = append(where, fmt.Sprintf("gamedate >= $%d AND gamedate < $%d", argID, argID+1))
-		args = append(args, startUTC, endUTC)
-		argID += 2
-	}
-
-	if len(where) > 0 {
-		sqlParts = append(sqlParts, "WHERE "+strings.Join(where, " AND "))
-	}
-
+	// Defaults
 	limit := 100
 	if limitStr != "" {
 		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 && l <= 1000 {
 			limit = l
 		}
 	}
-	sqlParts = append(sqlParts, fmt.Sprintf("ORDER BY gamepk DESC LIMIT %d", limit))
-	sqlStr := strings.Join(sqlParts, " ")
 
-	rows, err := s.db.Query(sqlStr, args...)
-	if err != nil {
+	// Build WHERE and args
+	var where []string
+	var args []any
+	arg := 1
+
+	if gamePkStr != "" {
+		gp, err := strconv.Atoi(gamePkStr)
+		if err != nil {
+			http.Error(w, "invalid gamePk", http.StatusBadRequest)
+			return
+		}
+		where = append(where, fmt.Sprintf("gamepk = $%d", arg))
+		args = append(args, gp)
+		arg++
+	}
+
+	if gameDate != "" {
+		startUTC, endUTC, err := pacificDayRangeUTC(gameDate)
+		if err != nil {
+			http.Error(w, "invalid gamedate", http.StatusBadRequest)
+			return
+		}
+		where = append(where, fmt.Sprintf("gamedate >= $%d AND gamedate < $%d", arg, arg+1))
+		args = append(args, startUTC, endUTC)
+		arg += 2
+	}
+
+	whereSQL := ""
+	if len(where) > 0 {
+		whereSQL = "WHERE " + strings.Join(where, " AND ")
+	}
+
+	// Select ONLY the columns you render in the UI
+	sqlStr := fmt.Sprintf(`
+      SELECT COALESCE(json_agg(t), '[]'::json)
+      FROM (
+        SELECT gamepk, hometeamabbr, awayteamabbr, homepitchername, awaypitchername,
+               gamedate,
+               moneylinehomewin, mlhomewinlower95, mlhomewinupper95
+        FROM game_result_agg_core
+        %s
+        ORDER BY gamepk DESC
+        LIMIT $%d
+      ) AS t`, whereSQL, arg)
+
+	args = append(args, limit)
+
+	start := time.Now()
+	var payload []byte
+	if err := s.db.QueryRow(sqlStr, args...).Scan(&payload); err != nil {
 		log.Printf("agg-core query error: %v", err)
 		http.Error(w, "database error", http.StatusInternalServerError)
 		return
 	}
-	defer rows.Close()
+	dbDur := time.Since(start)
 
-	cols, _ := rows.Columns()
-	results := []map[string]interface{}{}
-
-	for rows.Next() {
-		data := make([]interface{}, len(cols))
-		ptrs := make([]interface{}, len(cols))
-		for i := range data {
-			ptrs[i] = &data[i]
+	// Cache headers (fast re-loads, especially for past dates)
+	if gameDate != "" {
+		todayPT := time.Now().In(mustTZ("America/Los_Angeles")).Format("2006-01-02")
+		if gameDate < todayPT {
+			w.Header().Set("Cache-Control", "public, max-age=86400, immutable")
+		} else {
+			w.Header().Set("Cache-Control", "public, max-age=60")
 		}
-		if err := rows.Scan(ptrs...); err != nil {
-			log.Printf("scan error: %v", err)
-			continue
-		}
-		row := map[string]interface{}{}
-		for i, c := range cols {
-			val := *(ptrs[i].(*interface{}))
-			switch v := val.(type) {
-			case []byte:
-				row[c] = string(v) // decode byte slice to string
-			default:
-				row[c] = v
-			}
-
-		}
-		results = append(results, row)
 	}
 
+	// Optional: expose timings in DevTools
+	w.Header().Set("Server-Timing", fmt.Sprintf("db;dur=%.1f", float64(dbDur.Microseconds())/1000.0))
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(results)
+	w.Write(payload)
 }
+
+func mustTZ(name string) *time.Location { l, _ := time.LoadLocation(name); return l }
 
 // GET /batter-props
 func (s *APIServer) GetBatterProps(w http.ResponseWriter, req *http.Request) {
