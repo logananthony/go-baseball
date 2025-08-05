@@ -62,7 +62,7 @@ func InsertBatterProps(db *sql.DB, prop models.BatterProps) error {
 
 	sqlStr := fmt.Sprintf(
 		`INSERT INTO batter_props (%s) VALUES (%s)
-		ON CONFLICT (batterid, gamepk) DO UPDATE SET %s`,
+		ON CONFLICT (batterid, gamepk, battingorder, team) DO UPDATE SET %s`,
 		strings.Join(columns, ", "),
 		strings.Join(placeholders, ", "),
 		strings.Join(updates, ", "),
