@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"strconv"
@@ -66,13 +65,6 @@ func NewAPIServer(addr string, db *sql.DB) *APIServer {
 //   - any key in exactCols  (exact match)
 //   - gamedate (YYYY-MM-DD)  — evaluated in Pacific time, same as /agg-core
 //   - limit   (defaults 100, capped 1000)
-
-func writeJSONError(w http.ResponseWriter, status int, msg string) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	io.WriteString(w, fmt.Sprintf(`{"error":%q}`, msg))
-}
-
 func (s *APIServer) queryPropsTable(
 	w http.ResponseWriter,
 	req *http.Request,
@@ -117,7 +109,7 @@ func (s *APIServer) queryPropsTable(
 	rows, err := s.db.Query(sqlStr, args...)
 	if err != nil {
 		log.Printf("%s query error: %v", table, err)
-		writeJSONError(w, http.StatusInternalServerError, "database error")
+		http.Error(w, "database error", http.StatusInternalServerError)
 		return
 	}
 	defer rows.Close()
@@ -956,7 +948,7 @@ func (s *APIServer) PostJobStatus(w http.ResponseWriter, req *http.Request) {
 		return
 	} else if err != nil {
 		log.Printf("Error querying job: %v", err)
-		writeJSONError(w, http.StatusInternalServerError, "database error")
+		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
 
@@ -1058,7 +1050,7 @@ func (s *APIServer) GetGameResults(w http.ResponseWriter, req *http.Request) {
 	rows, err := s.db.Query(sqlStr, args...)
 	if err != nil {
 		log.Printf("DB query error: %v", err)
-		writeJSONError(w, http.StatusInternalServerError, "database error")
+		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
 	defer rows.Close()
@@ -1113,7 +1105,7 @@ func (s *APIServer) GetJobStatusQueryParams(w http.ResponseWriter, req *http.Req
 			return
 		} else if err != nil {
 			log.Printf("Error querying job: %v", err)
-			writeJSONError(w, http.StatusInternalServerError, "database error")
+			http.Error(w, "Database error", http.StatusInternalServerError)
 			return
 		}
 
@@ -1137,7 +1129,7 @@ func (s *APIServer) GetJobStatusQueryParams(w http.ResponseWriter, req *http.Req
 		WHERE user_id = $1 ORDER BY updated_at DESC`, userID)
 	if err != nil {
 		log.Printf("Error querying jobs for user %s: %v", userID, err)
-		writeJSONError(w, http.StatusInternalServerError, "database error")
+		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
 	defer rows.Close()
@@ -1174,89 +1166,86 @@ func (s *APIServer) GetAggCore(w http.ResponseWriter, req *http.Request) {
 	q := req.URL.Query()
 	gamePkStr := q.Get("gamePk")
 	limitStr := q.Get("limit")
-	gameDate := q.Get("gamedate")
+	gameDateStr := q.Get("gamedate") // e.g., "2025-06-28"
 
-	// Defaults
+	sqlParts := []string{"SELECT * FROM game_result_agg_core"}
+	args := []interface{}{}
+	where := []string{}
+	argID := 1
+
+	if gamePkStr != "" {
+		where = append(where, "gamepk = $"+strconv.Itoa(argID))
+		gp, err := strconv.Atoi(gamePkStr)
+		if err != nil {
+			http.Error(w, "invalid gamePk", http.StatusBadRequest)
+			return
+		}
+		args = append(args, gp)
+		argID++
+	}
+
+	if gameDateStr != "" {
+		startUTC, endUTC, err := pacificDayRangeUTC(gameDateStr)
+		if err != nil {
+			http.Error(w, "invalid gamedate", http.StatusBadRequest)
+			return
+		}
+		where = append(where, fmt.Sprintf("gamedate >= $%d AND gamedate < $%d", argID, argID+1))
+		args = append(args, startUTC, endUTC)
+		argID += 2
+	}
+
+	if len(where) > 0 {
+		sqlParts = append(sqlParts, "WHERE "+strings.Join(where, " AND "))
+	}
+
 	limit := 100
 	if limitStr != "" {
 		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 && l <= 1000 {
 			limit = l
 		}
 	}
+	sqlParts = append(sqlParts, fmt.Sprintf("ORDER BY gamepk DESC LIMIT %d", limit))
+	sqlStr := strings.Join(sqlParts, " ")
 
-	// Build WHERE and args
-	var where []string
-	var args []any
-	arg := 1
-
-	if gamePkStr != "" {
-		gp, err := strconv.Atoi(gamePkStr)
-		if err != nil {
-			http.Error(w, "invalid gamePk", http.StatusBadRequest)
-			return
-		}
-		where = append(where, fmt.Sprintf("gamepk = $%d", arg))
-		args = append(args, gp)
-		arg++
-	}
-
-	if gameDate != "" {
-		startUTC, endUTC, err := pacificDayRangeUTC(gameDate)
-		if err != nil {
-			http.Error(w, "invalid gamedate", http.StatusBadRequest)
-			return
-		}
-		where = append(where, fmt.Sprintf("gamedate >= $%d AND gamedate < $%d", arg, arg+1))
-		args = append(args, startUTC, endUTC)
-		arg += 2
-	}
-
-	whereSQL := ""
-	if len(where) > 0 {
-		whereSQL = "WHERE " + strings.Join(where, " AND ")
-	}
-
-	// Select ONLY the columns you render in the UI
-	sqlStr := fmt.Sprintf(`
-      SELECT COALESCE(json_agg(t), '[]'::json)
-      FROM (
-        SELECT gamepk, hometeamabbr, awayteamabbr, homepitchername, awaypitchername,
-               gamedate,
-               moneylinehomewin, mlhomewinlower95, mlhomewinupper95
-        FROM game_result_agg_core
-        %s
-        ORDER BY gamepk DESC
-        LIMIT $%d
-      ) AS t`, whereSQL, arg)
-
-	args = append(args, limit)
-
-	start := time.Now()
-	var payload []byte
-	if err := s.db.QueryRow(sqlStr, args...).Scan(&payload); err != nil {
+	rows, err := s.db.Query(sqlStr, args...)
+	if err != nil {
 		log.Printf("agg-core query error: %v", err)
-		writeJSONError(w, http.StatusInternalServerError, "database error")
+		http.Error(w, "database error", http.StatusInternalServerError)
 		return
 	}
-	dbDur := time.Since(start)
+	defer rows.Close()
 
-	// Cache headers (fast re-loads, especially for past dates)
-	if gameDate != "" {
-		todayPT := time.Now().In(mustTZ("America/Los_Angeles")).Format("2006-01-02")
-		if gameDate < todayPT {
-			w.Header().Set("Cache-Control", "public, max-age=86400, immutable")
-		} else {
-			w.Header().Set("Cache-Control", "public, max-age=60")
+	cols, _ := rows.Columns()
+	results := []map[string]interface{}{}
+
+	for rows.Next() {
+		data := make([]interface{}, len(cols))
+		ptrs := make([]interface{}, len(cols))
+		for i := range data {
+			ptrs[i] = &data[i]
 		}
+		if err := rows.Scan(ptrs...); err != nil {
+			log.Printf("scan error: %v", err)
+			continue
+		}
+		row := map[string]interface{}{}
+		for i, c := range cols {
+			val := *(ptrs[i].(*interface{}))
+			switch v := val.(type) {
+			case []byte:
+				row[c] = string(v) // decode byte slice to string
+			default:
+				row[c] = v
+			}
+
+		}
+		results = append(results, row)
 	}
 
-	// Optional: expose timings in DevTools
-	w.Header().Set("Server-Timing", fmt.Sprintf("db;dur=%.1f", float64(dbDur.Microseconds())/1000.0))
 	w.Header().Set("Content-Type", "application/json")
-	w.Write(payload)
+	json.NewEncoder(w).Encode(results)
 }
-
-func mustTZ(name string) *time.Location { l, _ := time.LoadLocation(name); return l }
 
 // GET /batter-props
 func (s *APIServer) GetBatterProps(w http.ResponseWriter, req *http.Request) {
