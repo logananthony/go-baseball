@@ -827,6 +827,7 @@ func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 				f[i] = float64(k)
 			}
 			avgK := utils.Mean(f)
+			fmt.Println("avgK:", avgK)
 			iqrK := utils.QuantileWidth(f, 0.25, 0.75)
 			q80K := utils.QuantileWidth(f, 0.10, 0.90)
 

@@ -50,7 +50,7 @@ func InsertPitcherProps(db *sql.DB, prop models.PitcherProps) error {
 
 	sqlStr := fmt.Sprintf(
 		`INSERT INTO pitcher_props (%s) VALUES (%s)
-		ON CONFLICT (pitcherid, gamepk, team) DO UPDATE SET %s`,
+		ON CONFLICT (pitcherid, gamepk) DO UPDATE SET %s`,
 		strings.Join(columns, ", "),
 		strings.Join(placeholders, ", "),
 		strings.Join(updates, ", "),
