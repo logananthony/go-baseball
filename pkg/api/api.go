@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"strconv"
@@ -65,6 +66,13 @@ func NewAPIServer(addr string, db *sql.DB) *APIServer {
 //   - any key in exactCols  (exact match)
 //   - gamedate (YYYY-MM-DD)  — evaluated in Pacific time, same as /agg-core
 //   - limit   (defaults 100, capped 1000)
+
+func writeJSONError(w http.ResponseWriter, status int, msg string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	io.WriteString(w, fmt.Sprintf(`{"error":%q}`, msg))
+}
+
 func (s *APIServer) queryPropsTable(
 	w http.ResponseWriter,
 	req *http.Request,
@@ -109,7 +117,7 @@ func (s *APIServer) queryPropsTable(
 	rows, err := s.db.Query(sqlStr, args...)
 	if err != nil {
 		log.Printf("%s query error: %v", table, err)
-		http.Error(w, "database error", http.StatusInternalServerError)
+		writeJSONError(w, http.StatusInternalServerError, "database error")
 		return
 	}
 	defer rows.Close()
@@ -948,7 +956,7 @@ func (s *APIServer) PostJobStatus(w http.ResponseWriter, req *http.Request) {
 		return
 	} else if err != nil {
 		log.Printf("Error querying job: %v", err)
-		http.Error(w, "Database error", http.StatusInternalServerError)
+		writeJSONError(w, http.StatusInternalServerError, "database error")
 		return
 	}
 
@@ -1050,7 +1058,7 @@ func (s *APIServer) GetGameResults(w http.ResponseWriter, req *http.Request) {
 	rows, err := s.db.Query(sqlStr, args...)
 	if err != nil {
 		log.Printf("DB query error: %v", err)
-		http.Error(w, "Database error", http.StatusInternalServerError)
+		writeJSONError(w, http.StatusInternalServerError, "database error")
 		return
 	}
 	defer rows.Close()
@@ -1105,7 +1113,7 @@ func (s *APIServer) GetJobStatusQueryParams(w http.ResponseWriter, req *http.Req
 			return
 		} else if err != nil {
 			log.Printf("Error querying job: %v", err)
-			http.Error(w, "Database error", http.StatusInternalServerError)
+			writeJSONError(w, http.StatusInternalServerError, "database error")
 			return
 		}
 
@@ -1129,7 +1137,7 @@ func (s *APIServer) GetJobStatusQueryParams(w http.ResponseWriter, req *http.Req
 		WHERE user_id = $1 ORDER BY updated_at DESC`, userID)
 	if err != nil {
 		log.Printf("Error querying jobs for user %s: %v", userID, err)
-		http.Error(w, "Database error", http.StatusInternalServerError)
+		writeJSONError(w, http.StatusInternalServerError, "database error")
 		return
 	}
 	defer rows.Close()
@@ -1227,7 +1235,7 @@ func (s *APIServer) GetAggCore(w http.ResponseWriter, req *http.Request) {
 	var payload []byte
 	if err := s.db.QueryRow(sqlStr, args...).Scan(&payload); err != nil {
 		log.Printf("agg-core query error: %v", err)
-		http.Error(w, "database error", http.StatusInternalServerError)
+		writeJSONError(w, http.StatusInternalServerError, "database error")
 		return
 	}
 	dbDur := time.Since(start)
