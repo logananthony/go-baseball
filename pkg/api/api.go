@@ -826,8 +826,9 @@ func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 			for i, k := range kSlice {
 				f[i] = float64(k)
 			}
-			avgK := utils.Mean(f)
+			// avgK := utils.Mean(f)
 			// fmt.Println("avgK:", kSlice)
+			avgK := 0.0
 			iqrK := utils.QuantileWidth(f, 0.25, 0.75)
 			q80K := utils.QuantileWidth(f, 0.10, 0.90)
 
@@ -839,6 +840,7 @@ func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 			pitchCountSlice := pitcherPitchCounts[pitcherID]
 
 			totalStrikeouts := utils.Sum(kSlice)
+			avgK = float64(totalStrikeouts) / float64(body.NSims)
 			totalWalks := utils.Sum(bbSlice)
 			totalSwStr := utils.Sum(swstrSlice)
 			totalPitches := utils.Sum(pitchCountSlice)
