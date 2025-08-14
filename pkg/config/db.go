@@ -1,37 +1,3 @@
-// package config
-
-// import (
-// 	"database/sql"
-// 	"fmt"
-// 	"log"
-// 	"strconv"
-//  "os"
-// 	_ "github.com/lib/pq"
-// )
-
-// func ConnectDB() *sql.DB {
-// 	portStr := os.Getenv("DB_PORT")
-// 	portInt, err := strconv.Atoi(portStr)
-// 	if err != nil {
-// 		log.Fatalf("Invalid port: %v", err)
-// 	}
-
-// 	connStr := fmt.Sprintf(
-// 		"host=%s port=%d user=%s password=%s dbname=%s sslmode=require",
-// 		os.Getenv("DB_HOST"),
-// 		portInt,
-// 		os.Getenv("DB_USER"),
-// 		os.Getenv("DB_PASSWORD"),
-// 		os.Getenv("DB_NAME"),
-// 	)
-
-// 	db, err := sql.Open("postgres", connStr)
-// 	if err != nil {
-// 		log.Fatal("Connection error:", err)
-// 	}
-// 	return db
-// }
-
 package config
 
 import (
@@ -40,6 +6,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"time"
 
 	_ "github.com/lib/pq"
 )
@@ -54,26 +21,43 @@ func getenv(key, def string) string {
 
 func ConnectDB() *sql.DB {
 	host := getenv("DB_HOST", "127.0.0.1")
-	port := getenv("DB_PORT", "5432") // ← keep as string, no Atoi
+	port := getenv("DB_PORT", "5432") // keep string
 	user := getenv("DB_USER", "postgres")
 	pass := getenv("DB_PASSWORD", "")
 	name := getenv("DB_NAME", "postgres")
-	ssl := getenv("DB_SSLMODE", "disable") // local default; override to "require" for RDS
+	// Default to TLS in prod; override locally with DB_SSLMODE=disable if needed.
+	ssl := getenv("DB_SSLMODE", "require")
 
 	dsn := fmt.Sprintf(
 		"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
 		host, port, user, pass, name, ssl,
 	)
 
-	// Optional: redact password in logs if you log DSN
 	log.Printf("Connecting to Postgres host=%s port=%s dbname=%s sslmode=%s", host, port, name, ssl)
 
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
+		// This is a config error (bad DSN/driver); fail fast.
 		log.Fatalf("sql.Open: %v", err)
 	}
-	if err := db.Ping(); err != nil {
-		log.Fatalf("db.Ping: %v", err)
-	}
+
+	// Start a background ping with backoff so the web server can start
+	// and pass App Platform's readiness probe even if the DB isn't ready yet.
+	go func() {
+		backoff := time.Second
+		for {
+			if err := db.Ping(); err != nil {
+				log.Printf("db.Ping failed: %v (retrying in %v)", err, backoff)
+				time.Sleep(backoff)
+				if backoff < 30*time.Second {
+					backoff *= 2
+				}
+				continue
+			}
+			log.Printf("db.Ping succeeded; database connection established.")
+			return
+		}
+	}()
+
 	return db
 }

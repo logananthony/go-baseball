@@ -1,9 +1,9 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"math/rand"
+	"os"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -13,33 +13,27 @@ import (
 )
 
 func init() {
+	// Loads .env when present (dev). In App Platform, set env vars in the UI/spec.
 	_ = godotenv.Load()
-}
-
-func timer(name string) func() {
-	start := time.Now()
-	return func() {
-		fmt.Printf("%s took %v\n", name, time.Since(start))
-	}
 }
 
 func main() {
 	rand.Seed(time.Now().UnixNano())
 
-	defer timer("main")()
-	time.Sleep(time.Second * 2)
-
 	db := config.ConnectDB()
-
+	// Reasonable pool defaults; tweak to taste.
 	db.SetMaxOpenConns(15)
 	db.SetMaxIdleConns(10)
-	db.SetConnMaxLifetime(time.Minute * 5)
-
+	db.SetConnMaxLifetime(5 * time.Minute)
 	defer db.Close()
 
-	server := api.NewAPIServer(":8080", db)
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	server := api.NewAPIServer(":"+port, db)
 	if err := server.Run(); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
-
 }
