@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -361,8 +362,11 @@ func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 			return
 		}
 
-		const maxConcurrentSims = 8
-		sem := make(chan struct{}, maxConcurrentSims)
+		maxWorkers := runtime.GOMAXPROCS(0)
+		if n < maxWorkers {
+			maxWorkers = n
+		}
+		jobs := make(chan int, maxWorkers)
 		var wg sync.WaitGroup
 
 		var (
@@ -371,41 +375,37 @@ func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 			metaOnce                                             sync.Once
 		)
 
-		outcomes := make([]models.SimOutcome, 0, n)
-		var mu sync.Mutex
+		outcomes := make([]models.SimOutcome, n)
 
-		for i := 0; i < n; i++ {
+		for w := 0; w < maxWorkers; w++ {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				sem <- struct{}{}
-				defer func() { <-sem }()
-				defer func() {
-					if r := recover(); r != nil {
-						log.Printf("SimulateGame panic: %v", r)
+				for i := range jobs {
+					h, a, ht, at, hpn, apn, gd, batterEvents, pitcherEvents, runEvents := sim.SimulateGame(
+						s.db, simData, homeLineup, awayLineup, pitchingSubProbs, homeBullpen, awayBullpen, bullpenRoleProbs, data, outcomeMode,
+					)
+					metaOnce.Do(func() {
+						homeTeam = ht
+						awayTeam = at
+						homePitcherName = hpn
+						awayPitcherName = apn
+						gameDate = gd
+					})
+					outcomes[i] = models.SimOutcome{
+						HomeScore:     h,
+						AwayScore:     a,
+						BatterEvents:  batterEvents,
+						PitcherEvents: pitcherEvents,
+						RunEvents:     runEvents,
 					}
-				}()
-				h, a, ht, at, hpn, apn, gd, batterEvents, pitcherEvents, runEvents := sim.SimulateGame(
-					s.db, simData, homeLineup, awayLineup, pitchingSubProbs, homeBullpen, awayBullpen, bullpenRoleProbs, data, outcomeMode,
-				)
-				metaOnce.Do(func() {
-					homeTeam = ht
-					awayTeam = at
-					homePitcherName = hpn
-					awayPitcherName = apn
-					gameDate = gd
-				})
-				mu.Lock()
-				outcomes = append(outcomes, models.SimOutcome{
-					HomeScore:     h,
-					AwayScore:     a,
-					BatterEvents:  batterEvents,
-					PitcherEvents: pitcherEvents,
-					RunEvents:     runEvents,
-				})
-				mu.Unlock()
+				}
 			}()
 		}
+		for i := 0; i < n; i++ {
+			jobs <- i
+		}
+		close(jobs)
 		wg.Wait()
 
 		// ========== GAME-LEVEL AGGREGATION ==========
