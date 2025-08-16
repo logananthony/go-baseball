@@ -5,7 +5,6 @@ import (
 	"log"
 	"math"
 	"math/rand"
-	"time"
 
 	"github.com/logananthony/go-baseball/pkg/models"
 )
@@ -80,8 +79,6 @@ func AggregateEVDistributions(dists []models.EVDistribution) models.EVDistributi
 
 // SampleFromSkewNormal returns a sample from a skew-normal distribution using Azzalini's method
 func SampleFromSkewNormal(mean, std, skew float64) float64 {
-	rand.Seed(time.Now().UnixNano())
-
 	u0 := rand.NormFloat64()
 	v := rand.NormFloat64()
 

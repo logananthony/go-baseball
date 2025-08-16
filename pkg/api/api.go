@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -55,6 +56,13 @@ type APIServer struct {
 }
 
 func NewAPIServer(addr string, db *sql.DB) *APIServer {
+	// Ensure new progress columns exist
+	if _, err := db.Exec(`ALTER TABLE simulation_jobs ADD COLUMN IF NOT EXISTS total_simulations INT DEFAULT 0`); err != nil {
+		log.Printf("failed adding total_simulations column: %v", err)
+	}
+	if _, err := db.Exec(`ALTER TABLE simulation_jobs ADD COLUMN IF NOT EXISTS current_simulation INT DEFAULT 0`); err != nil {
+		log.Printf("failed adding current_simulation column: %v", err)
+	}
 	return &APIServer{
 		addr: addr,
 		db:   db,
@@ -247,8 +255,8 @@ func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 
 	// Create job entry in DB
 	_, err := s.db.Exec(`
-		INSERT INTO simulation_jobs (id, user_id, status)
-		VALUES ($1, $2, 'pending')`, jobID, body.UserID)
+               INSERT INTO simulation_jobs (id, user_id, status, total_simulations, current_simulation)
+               VALUES ($1, $2, 'pending', $3, 0)`, jobID, body.UserID, body.NSims)
 	if err != nil {
 		log.Printf("Failed to create job in DB: %v", err)
 		http.Error(w, "Failed to create job", http.StatusInternalServerError)
@@ -362,11 +370,15 @@ func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 			return
 		}
 
-		maxWorkers := runtime.GOMAXPROCS(0)
+		maxWorkers := runtime.NumCPU()
+		if maxWorkers > 4 {
+			maxWorkers = 4
+		}
 		if n < maxWorkers {
 			maxWorkers = n
 		}
-		jobs := make(chan int, maxWorkers)
+
+		jobs := make(chan int)
 		var wg sync.WaitGroup
 
 		var (
@@ -376,34 +388,70 @@ func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 		)
 
 		outcomes := make([]models.SimOutcome, n)
+		var completed int64
+
+		worker := func() {
+			defer wg.Done()
+			for i := range jobs {
+				attempt := 0
+				for {
+					var err error
+					func() {
+						defer func() {
+							if r := recover(); r != nil {
+								err = fmt.Errorf("SimulateGame panic: %v", r)
+							}
+						}()
+						h, a, ht, at, hpn, apn, gd, batterEvents, pitcherEvents, runEvents := sim.SimulateGame(
+							s.db, simData, homeLineup, awayLineup, pitchingSubProbs, homeBullpen, awayBullpen, bullpenRoleProbs, data, outcomeMode,
+						)
+						metaOnce.Do(func() {
+							homeTeam = ht
+							awayTeam = at
+							homePitcherName = hpn
+							awayPitcherName = apn
+							gameDate = gd
+						})
+						outcomes[i] = models.SimOutcome{
+							HomeScore:     h,
+							AwayScore:     a,
+							BatterEvents:  batterEvents,
+							PitcherEvents: pitcherEvents,
+							RunEvents:     runEvents,
+						}
+					}()
+					if err == nil {
+						newVal := atomic.AddInt64(&completed, 1)
+						if _, dbErr := s.db.Exec(`UPDATE simulation_jobs SET current_simulation = $1, updated_at = NOW() WHERE id = $2`, newVal, jid); dbErr != nil {
+							log.Printf("Failed to update progress for job %s: %v", jid, dbErr)
+						}
+						break
+					}
+					attempt++
+					if attempt >= 3 {
+						log.Printf("SimulateGame failed after retries: %v", err)
+						break
+					}
+					time.Sleep(time.Duration(1<<attempt) * time.Second)
+				}
+			}
+		}
 
 		for w := 0; w < maxWorkers; w++ {
 			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				for i := range jobs {
-					h, a, ht, at, hpn, apn, gd, batterEvents, pitcherEvents, runEvents := sim.SimulateGame(
-						s.db, simData, homeLineup, awayLineup, pitchingSubProbs, homeBullpen, awayBullpen, bullpenRoleProbs, data, outcomeMode,
-					)
-					metaOnce.Do(func() {
-						homeTeam = ht
-						awayTeam = at
-						homePitcherName = hpn
-						awayPitcherName = apn
-						gameDate = gd
-					})
-					outcomes[i] = models.SimOutcome{
-						HomeScore:     h,
-						AwayScore:     a,
-						BatterEvents:  batterEvents,
-						PitcherEvents: pitcherEvents,
-						RunEvents:     runEvents,
-					}
-				}
-			}()
+			go worker()
 		}
-		for i := 0; i < n; i++ {
-			jobs <- i
+
+		batchSize := maxWorkers
+		for start := 0; start < n; start += batchSize {
+			end := start + batchSize
+			if end > n {
+				end = n
+			}
+			for i := start; i < end; i++ {
+				jobs <- i
+			}
+			time.Sleep(200 * time.Millisecond)
 		}
 		close(jobs)
 		wg.Wait()
@@ -907,9 +955,9 @@ func (s *APIServer) PostSimulateGame(w http.ResponseWriter, req *http.Request) {
 		}
 
 		_, err = s.db.Exec(`
-			UPDATE simulation_jobs
-			SET status = 'completed', result = $1, updated_at = NOW()
-			WHERE id = $2`, "Simulations complete", jid)
+                       UPDATE simulation_jobs
+                       SET status = 'completed', result = $1, current_simulation = total_simulations, updated_at = NOW()
+                       WHERE id = $2`, "Simulations complete", jid)
 		if err != nil {
 			log.Printf("Failed to update job %s to completed: %v", jid, err)
 		}
@@ -941,10 +989,11 @@ func (s *APIServer) PostJobStatus(w http.ResponseWriter, req *http.Request) {
 
 	var status string
 	var result sql.NullString
+	var currentSim, totalSim int
 
 	err := s.db.QueryRow(`
-		SELECT status, result FROM simulation_jobs
-		WHERE id = $1 AND user_id = $2`, body.JobID, body.UserID).Scan(&status, &result)
+               SELECT status, result, current_simulation, total_simulations FROM simulation_jobs
+               WHERE id = $1 AND user_id = $2`, body.JobID, body.UserID).Scan(&status, &result, &currentSim, &totalSim)
 	if err == sql.ErrNoRows {
 		http.Error(w, "Job not found", http.StatusNotFound)
 		return
@@ -960,10 +1009,12 @@ func (s *APIServer) PostJobStatus(w http.ResponseWriter, req *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
-		"jobId":  body.JobID,
-		"status": status,
-		"result": res,
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"jobId":             body.JobID,
+		"status":            status,
+		"result":            res,
+		"currentSimulation": currentSim,
+		"totalSimulations":  totalSim,
 	})
 }
 
@@ -1098,10 +1149,11 @@ func (s *APIServer) GetJobStatusQueryParams(w http.ResponseWriter, req *http.Req
 	if jobID != "" {
 		var status string
 		var result sql.NullString
+		var currentSim, totalSim int
 
 		err := s.db.QueryRow(`
-			SELECT status, result FROM simulation_jobs
-			WHERE id = $1 AND user_id = $2`, jobID, userID).Scan(&status, &result)
+                       SELECT status, result, current_simulation, total_simulations FROM simulation_jobs
+                       WHERE id = $1 AND user_id = $2`, jobID, userID).Scan(&status, &result, &currentSim, &totalSim)
 		if err == sql.ErrNoRows {
 			http.Error(w, "Job not found", http.StatusNotFound)
 			return
@@ -1117,18 +1169,20 @@ func (s *APIServer) GetJobStatusQueryParams(w http.ResponseWriter, req *http.Req
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{
-			"jobId":  jobID,
-			"status": status,
-			"result": res,
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"jobId":             jobID,
+			"status":            status,
+			"result":            res,
+			"currentSimulation": currentSim,
+			"totalSimulations":  totalSim,
 		})
 		return
 	}
 
 	// Case 2: Return all jobs for user
 	rows, err := s.db.Query(`
-		SELECT id, status, result FROM simulation_jobs
-		WHERE user_id = $1 ORDER BY updated_at DESC`, userID)
+               SELECT id, status, result, current_simulation, total_simulations FROM simulation_jobs
+               WHERE user_id = $1 ORDER BY updated_at DESC`, userID)
 	if err != nil {
 		log.Printf("Error querying jobs for user %s: %v", userID, err)
 		http.Error(w, "Database error", http.StatusInternalServerError)
@@ -1136,13 +1190,14 @@ func (s *APIServer) GetJobStatusQueryParams(w http.ResponseWriter, req *http.Req
 	}
 	defer rows.Close()
 
-	var jobs []map[string]string
+	var jobs []map[string]interface{}
 
 	for rows.Next() {
 		var id, status string
 		var result sql.NullString
+		var currentSim, totalSim int
 
-		if err := rows.Scan(&id, &status, &result); err != nil {
+		if err := rows.Scan(&id, &status, &result, &currentSim, &totalSim); err != nil {
 			log.Printf("Error scanning job row: %v", err)
 			continue
 		}
@@ -1152,10 +1207,12 @@ func (s *APIServer) GetJobStatusQueryParams(w http.ResponseWriter, req *http.Req
 			res = result.String
 		}
 
-		jobs = append(jobs, map[string]string{
-			"jobId":  id,
-			"status": status,
-			"result": res,
+		jobs = append(jobs, map[string]interface{}{
+			"jobId":             id,
+			"status":            status,
+			"result":            res,
+			"currentSimulation": currentSim,
+			"totalSimulations":  totalSim,
 		})
 	}
 
