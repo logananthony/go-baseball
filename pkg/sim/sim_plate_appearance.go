@@ -25,9 +25,9 @@ func SimulatePlateAppearance(pa []models.PlateAppearanceData, sim []models.SimDa
 	batterStands := batterInfo.BatSide
 	pitcherThrows := pitcherInfo.PitchHand
 
-	swingPctStore := sim[0].BatterSwing
-	contactPctStore := sim[0].BatterContact
-	hitProbsStore := sim[0].BatterHitType
+	swingPctStore := sim[0].BatterSwingMap[pa[0].BatterId]
+	contactPctStore := sim[0].BatterContactMap[pa[0].BatterId]
+	hitProbsStore := sim[0].BatterHitTypeMap[pa[0].BatterId]
 
 	balls := 0
 	strikes := 0

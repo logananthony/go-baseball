@@ -20,4 +20,7 @@ type SimData struct {
 	PlayerInfoMap       map[int]MLBPlayerInfo
 	PitcherCovMap       map[int][]PitcherCovarianceMean
 	PitcherPitchFreqMap map[int]map[string][]PitcherCountPitchFreq
+	BatterSwingMap      map[int]map[string]BatterSwingPercentage
+	BatterContactMap    map[int]map[string]BatterContactPercentage
+	BatterHitTypeMap    map[int]map[string]BatterHitType
 }
