@@ -1,12 +1,13 @@
 package sim
 
 import (
+	"fmt"
+
 	"github.com/logananthony/go-baseball/pkg/models"
 	"github.com/logananthony/go-baseball/pkg/utils"
-	// "fmt"
 )
 
-func SimulateContactPercentage(player []models.BatterContactPercentage, league []models.BatterContactPercentageLeague, stand, pThrows, pitchType string, plateX, plateZ float64) string {
+func SimulateContactPercentage(player map[string]models.BatterContactPercentage, league []models.BatterContactPercentageLeague, stand, pThrows, pitchType string, plateX, plateZ float64) string {
 
 	zoneNum := utils.GetPitchZone(plateX, plateZ)
 
@@ -15,23 +16,15 @@ func SimulateContactPercentage(player []models.BatterContactPercentage, league [
 	league_contact_prob := []float64{}
 	var contactResult string
 
-	// Player-level check
-	for _, each := range player {
-		if each.Stand == stand && each.PThrows == pThrows && each.PitchType == pitchType && each.Zone == zoneNum {
-			if each.TotalSwings >= 15 {
-				player_contact_prob = []float64{each.PctSwingingStrike, each.PctFoul, each.PctBallInPlay}
-				// fmt.Println("✅ Using player-level data")
-				// fmt.Println(player_contact_prob)
-				break
-			}
-		}
+	key := fmt.Sprintf("%s|%s|%d|%s", stand, pThrows, zoneNum, pitchType)
+	if data, ok := player[key]; ok && data.TotalSwings >= 15 {
+		player_contact_prob = []float64{data.PctSwingingStrike, data.PctFoul, data.PctBallInPlay}
 	}
 
 	// League-level fallback
 	for _, each := range league {
 		if each.Stand == stand && each.PThrows == pThrows && each.PitchType == pitchType && each.Zone == zoneNum {
 			league_contact_prob = []float64{each.PctSwingingStrike, each.PctFoul, each.PctBallInPlay}
-			// fmt.Println("📉 Using league-level fallback")
 			break
 		}
 	}
@@ -41,7 +34,6 @@ func SimulateContactPercentage(player []models.BatterContactPercentage, league [
 	} else if len(league_contact_prob) == len(pitch_types) {
 		contactResult = utils.WeightedSample(pitch_types, league_contact_prob)
 	} else {
-		// fmt.Println("🟥 No data available, defaulting to 'ball_in_play'")
 		contactResult = "foul"
 	}
 

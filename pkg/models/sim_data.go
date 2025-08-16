@@ -15,4 +15,12 @@ type SimData struct {
 	BatterSprayDist     []SprayDistribution
 	MLBParkFactors      []ParkFactors
 	HomeTeam            string
+
+	// Precomputed lookups for faster simulation
+	PlayerInfoMap       map[int]MLBPlayerInfo
+	PitcherCovMap       map[int][]PitcherCovarianceMean
+	PitcherPitchFreqMap map[int]map[string][]PitcherCountPitchFreq
+	BatterSwingMap      map[int]map[string]BatterSwingPercentage
+	BatterContactMap    map[int]map[string]BatterContactPercentage
+	BatterHitTypeMap    map[int]map[string]BatterHitType
 }

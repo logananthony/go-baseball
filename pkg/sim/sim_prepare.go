@@ -185,6 +185,57 @@ func PrepareSimData(
 
 	bullpenRoleProbs, _ := fetcher.FetchAllBullpenRoleProbs(db)
 
+	// Precompute lookup maps for faster simulation
+	simData.PlayerInfoMap = make(map[int]models.MLBPlayerInfo)
+	for _, p := range simData.PlayerInfo {
+		if p.ID != nil {
+			simData.PlayerInfoMap[*p.ID] = p
+		}
+	}
+
+	simData.PitcherCovMap = make(map[int][]models.PitcherCovarianceMean)
+	for _, pc := range simData.PitcherCovMeans {
+		pid := int(pc.Pitcher)
+		simData.PitcherCovMap[pid] = append(simData.PitcherCovMap[pid], pc)
+	}
+
+	simData.PitcherPitchFreqMap = make(map[int]map[string][]models.PitcherCountPitchFreq)
+	for _, pf := range simData.PitcherPitchFreq {
+		pid := pf.PITCHER
+		stand := pf.STAND
+		if simData.PitcherPitchFreqMap[pid] == nil {
+			simData.PitcherPitchFreqMap[pid] = make(map[string][]models.PitcherCountPitchFreq)
+		}
+		simData.PitcherPitchFreqMap[pid][stand] = append(simData.PitcherPitchFreqMap[pid][stand], pf)
+	}
+
+	simData.BatterSwingMap = make(map[int]map[string]models.BatterSwingPercentage)
+	for _, bs := range simData.BatterSwing {
+		key := fmt.Sprintf("%s|%s|%d|%s", bs.Stand, bs.PThrows, bs.Zone, bs.PitchType)
+		if simData.BatterSwingMap[bs.Batter] == nil {
+			simData.BatterSwingMap[bs.Batter] = make(map[string]models.BatterSwingPercentage)
+		}
+		simData.BatterSwingMap[bs.Batter][key] = bs
+	}
+
+	simData.BatterContactMap = make(map[int]map[string]models.BatterContactPercentage)
+	for _, bc := range simData.BatterContact {
+		key := fmt.Sprintf("%s|%s|%d|%s", bc.Stand, bc.PThrows, bc.Zone, bc.PitchType)
+		if simData.BatterContactMap[bc.Batter] == nil {
+			simData.BatterContactMap[bc.Batter] = make(map[string]models.BatterContactPercentage)
+		}
+		simData.BatterContactMap[bc.Batter][key] = bc
+	}
+
+	simData.BatterHitTypeMap = make(map[int]map[string]models.BatterHitType)
+	for _, bh := range simData.BatterHitType {
+		key := fmt.Sprintf("%s|%s|%d|%s|%s", bh.Stand, bh.PThrows, bh.Zone, bh.PitchType, bh.VelocityBucket)
+		if simData.BatterHitTypeMap[bh.Batter] == nil {
+			simData.BatterHitTypeMap[bh.Batter] = make(map[string]models.BatterHitType)
+		}
+		simData.BatterHitTypeMap[bh.Batter][key] = bh
+	}
+
 	// spew.Dump(bullpenRoleProbs)
 
 	return simData, homeLineup, awayLineup, pitchingSubProbs, homeBullpen, awayBullpen, bullpenRoleProbs, nil

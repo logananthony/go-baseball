@@ -7,56 +7,9 @@ import (
 	"github.com/logananthony/go-baseball/pkg/utils"
 )
 
-// func SimulateBatterHitType(in []models.BatterHitType, stand, pThrows, pitchType string, plateX, plateZ, velocity float64, teamAbbr string, pf []models.ParkFactors) string {
-// 	zone_num := utils.GetPitchZone(plateX, plateZ)
-// 	velo_bucket := utils.GetVelocityBucket(velocity)
-
-// 	var bestScore int
-// 	var selected *models.BatterHitType
-
-// 	for i := range in {
-// 		score := 0
-// 		if in[i].Stand == stand {
-// 			score++
-// 		}
-// 		if in[i].PThrows == pThrows {
-// 			score++
-// 		}
-// 		if in[i].PitchType == pitchType {
-// 			score++
-// 		}
-// 		if in[i].Zone == zone_num {
-// 			score++
-// 		}
-// 		if in[i].VelocityBucket == velo_bucket {
-// 			score++
-// 		}
-
-// 		if score > bestScore {
-// 			bestScore = score
-// 			selected = &in[i]
-// 		}
-// 	}
-
-// 	if selected == nil || bestScore < 2 { // Optional: require minimum specificity
-// 		return "out"
-// 	}
-
-// 	outcomes := []string{"single", "double", "triple", "home_run", "out"}
-// 	probs := []float64{
-// 		selected.Single,
-// 		selected.Double,
-// 		selected.Triple,
-// 		selected.HomeRun,
-// 		selected.Out,
-// 	}
-
-// 	return utils.WeightedSample(outcomes, probs)
-// }
-
-func SimulateBatterHitType(in []models.BatterHitType, stand, pThrows, pitchType string, plateX, plateZ, velocity float64, teamAbbr string, pf []models.ParkFactors) string {
-	zone_num := utils.GetPitchZone(plateX, plateZ)
-	velo_bucket := utils.GetVelocityBucket(velocity)
+func SimulateBatterHitType(player map[string]models.BatterHitType, stand, pThrows, pitchType string, plateX, plateZ, velocity float64, teamAbbr string, pf []models.ParkFactors) string {
+	zoneNum := utils.GetPitchZone(plateX, plateZ)
+	veloBucket := utils.GetVelocityBucket(velocity)
 	// Alias map for in-memory lookup, should match fetcher.FetchParkFactors
 	abbrMap := map[string]string{
 		"AZ":  "ARI",
@@ -68,34 +21,9 @@ func SimulateBatterHitType(in []models.BatterHitType, stand, pThrows, pitchType 
 		teamAbbr = val
 	}
 
-	var bestScore int
-	var selected *models.BatterHitType
-
-	for i := range in {
-		score := 0
-		if in[i].Stand == stand {
-			score++
-		}
-		if in[i].PThrows == pThrows {
-			score++
-		}
-		if in[i].PitchType == pitchType {
-			score++
-		}
-		if in[i].Zone == zone_num {
-			score++
-		}
-		if in[i].VelocityBucket == velo_bucket {
-			score++
-		}
-
-		if score > bestScore {
-			bestScore = score
-			selected = &in[i]
-		}
-	}
-
-	if selected == nil || bestScore < 2 {
+	key := fmt.Sprintf("%s|%s|%d|%s|%s", stand, pThrows, zoneNum, pitchType, veloBucket)
+	data, ok := player[key]
+	if !ok {
 		return "out"
 	}
 
@@ -112,19 +40,17 @@ func SimulateBatterHitType(in []models.BatterHitType, stand, pThrows, pitchType 
 
 	// ─── Probabilities ────────────────────────────────────────────────────
 	probs := []float64{
-		selected.Single,
-		selected.Double,
-		selected.Triple,
-		selected.HomeRun,
-		selected.Out,
+		data.Single,
+		data.Double,
+		data.Triple,
+		data.HomeRun,
+		data.Out,
 	}
 
 	outcomes := []string{"single", "double", "triple", "home_run", "out"}
 
 	// ─── Park Factor Adjustments ──────────────────────────────────────────
 	if found {
-		// fmt.Printf("🌍 Applying park factors for %s (%s): %+v\n", teamAbbr, park.Venue, park)
-
 		before := make([]float64, len(probs))
 		copy(before, probs)
 
@@ -133,10 +59,6 @@ func SimulateBatterHitType(in []models.BatterHitType, stand, pThrows, pitchType 
 		probs[2] *= float64(park.ThreeB) / 100.0
 		probs[3] *= float64(park.HR) / 100.0
 		probs[4] *= 2.0 - float64(park.H)/100.0
-
-		// for i := range outcomes {
-		// 	fmt.Printf("🔢 %s: raw=%.4f → adjusted=%.4f\n", outcomes[i], before[i], probs[i])
-		// }
 	} else {
 		fmt.Printf("⚠️  No park factor found for team: %s\n", teamAbbr)
 	}
