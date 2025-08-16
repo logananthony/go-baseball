@@ -185,6 +185,30 @@ func PrepareSimData(
 
 	bullpenRoleProbs, _ := fetcher.FetchAllBullpenRoleProbs(db)
 
+	// Precompute lookup maps for faster simulation
+	simData.PlayerInfoMap = make(map[int]models.MLBPlayerInfo)
+	for _, p := range simData.PlayerInfo {
+		if p.ID != nil {
+			simData.PlayerInfoMap[*p.ID] = p
+		}
+	}
+
+	simData.PitcherCovMap = make(map[int][]models.PitcherCovarianceMean)
+	for _, pc := range simData.PitcherCovMeans {
+		pid := int(pc.Pitcher)
+		simData.PitcherCovMap[pid] = append(simData.PitcherCovMap[pid], pc)
+	}
+
+	simData.PitcherPitchFreqMap = make(map[int]map[string][]models.PitcherCountPitchFreq)
+	for _, pf := range simData.PitcherPitchFreq {
+		pid := pf.PITCHER
+		stand := pf.STAND
+		if simData.PitcherPitchFreqMap[pid] == nil {
+			simData.PitcherPitchFreqMap[pid] = make(map[string][]models.PitcherCountPitchFreq)
+		}
+		simData.PitcherPitchFreqMap[pid][stand] = append(simData.PitcherPitchFreqMap[pid][stand], pf)
+	}
+
 	// spew.Dump(bullpenRoleProbs)
 
 	return simData, homeLineup, awayLineup, pitchingSubProbs, homeBullpen, awayBullpen, bullpenRoleProbs, nil
