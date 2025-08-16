@@ -12,19 +12,12 @@ func SimulatePlateAppearance(pa []models.PlateAppearanceData, sim []models.SimDa
 	// db := config.ConnectDB()
 	// defer db.Close()
 
-	playerInfoMap := make(map[int]models.MLBPlayerInfo)
-	for _, player := range sim[0].PlayerInfo {
-		if player.ID != nil {
-			playerInfoMap[*player.ID] = player
-		}
-	}
-
-	batterInfo, ok := playerInfoMap[pa[0].BatterId]
+	batterInfo, ok := sim[0].PlayerInfoMap[pa[0].BatterId]
 	if !ok {
 		panic(fmt.Sprintf("Missing batter info for ID: %d", pa[0].BatterId))
 	}
 
-	pitcherInfo, ok := playerInfoMap[pa[0].PitcherId]
+	pitcherInfo, ok := sim[0].PlayerInfoMap[pa[0].PitcherId]
 	if !ok {
 		panic(fmt.Sprintf("Missing pitcher info for ID: %d", pa[0].PitcherId))
 	}
@@ -32,26 +25,9 @@ func SimulatePlateAppearance(pa []models.PlateAppearanceData, sim []models.SimDa
 	batterStands := batterInfo.BatSide
 	pitcherThrows := pitcherInfo.PitchHand
 
-	swingPctMap := make(map[int]models.BatterSwingPercentage)
-	swingPctStore := []models.BatterSwingPercentage{}
-	for _, player := range sim[0].BatterSwing {
-		swingPctMap[player.Batter] = player
-		swingPctStore = append(swingPctStore, player)
-	}
-
-	contactPctMap := make(map[int]models.BatterContactPercentage)
-	contactPctStore := []models.BatterContactPercentage{}
-	for _, player := range sim[0].BatterContact {
-		contactPctMap[player.Batter] = player
-		contactPctStore = append(contactPctStore, player)
-	}
-
-	hitProbsMap := make(map[int]models.BatterHitType)
-	hitProbsStore := []models.BatterHitType{}
-	for _, player := range sim[0].BatterHitType {
-		hitProbsMap[player.Batter] = player
-		hitProbsStore = append(hitProbsStore, player)
-	}
+	swingPctStore := sim[0].BatterSwing
+	contactPctStore := sim[0].BatterContact
+	hitProbsStore := sim[0].BatterHitType
 
 	balls := 0
 	strikes := 0
@@ -140,23 +116,13 @@ func SimulatePlateAppearance(pa []models.PlateAppearanceData, sim []models.SimDa
 
 		pitch_count += 1
 
-		var pitcher_freqs []models.PitcherCountPitchFreq
-		for _, player := range sim[0].PitcherPitchFreq {
-			if player.PITCHER == pa[0].PitcherId && player.STAND == *batterStands {
-				pitcher_freqs = append(pitcher_freqs, player)
-			}
-		}
+		pitcher_freqs := sim[0].PitcherPitchFreqMap[pa[0].PitcherId][*batterStands]
 
 		pitch_type_result := SimulatePitchType(pitcher_freqs, balls, strikes)
 
 		// fmt.Println("SimulatePitchType result: ", pitch_type_result)
 
-		pitcherCovMap := make(map[int]models.PitcherCovarianceMean)
-		var pitcherCovMeanStore []models.PitcherCovarianceMean
-		for _, player := range sim[0].PitcherCovMeans {
-			pitcherCovMap[int(player.Pitcher)] = player
-			pitcherCovMeanStore = append(pitcherCovMeanStore, player)
-		}
+		pitcherCovMeanStore := sim[0].PitcherCovMap[pa[0].PitcherId]
 
 		location_velo_result := SimulatePitchLocationVelo(pitcherCovMeanStore,
 			sim[0].LeaguePitchCovMeans,
