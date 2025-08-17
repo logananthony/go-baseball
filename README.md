@@ -1,51 +1,83 @@
-# ⚾ Go! Baseball 
+# ⚾ Go! Baseball API
 
 <p align="center">
   <img src="assets/gopher-ball.png" alt="Go Gopher Playing Baseball" width="300"/>
 </p>
 
-## About the Project
+## Why this project exists
 
-Two words...baseball simulator. At its core, this project started from a personal obsession—I wanted to build baseball games that *come to life* at the click of a button. But on a more practical level, I built this to create opportunities—for myself and others—to access usable, pitch-by-pitch level data for baseball analytics.
+Baseball analytics often lacks the volume of pitch-by-pitch data needed for reliable insights. **Go! Baseball** simulates complete MLB games and exposes the results through a simple JSON API. Use it to generate thousands of realistic events for research, modeling, or just for fun.
 
-Too many problems in baseball analytics go unsolved because we just don’t have enough samples to work with. **Go! Baseball** is here to change that. It generates as much data as you’ll ever need, all in a format that’ll feel instantly familiar to anyone who’s worked with Baseball Savant (aka Statcast).
+## Run the server
 
-## How It Works
-
-- Simulates full 9-inning baseball games given multiple user inputs
-- Models pitch-by-pitch outcomes using real world probability distributions
-- Modular design using Go packages:
-  - `sim`: simulation engine
-  - `models`: shared data structures
-  - `utils`: helper functions
-  - `config`: database connections
-- `poster`: inserts results into database
-
-For a deeper look at the modeling flow, see [MODELING_OVERVIEW.md](MODELING_OVERVIEW.md).
-
-## Technologies
-
-- ![Go](https://img.shields.io/badge/Go-00ADD8?style=for-the-badge&logo=go&logoColor=white)
-- ![Baseball Savant](https://img.shields.io/badge/Baseball_Savant-0e6ba8?style=for-the-badge&logo=mlb&logoColor=white)
-- ![Python](https://img.shields.io/badge/Python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54)
-- ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white)
-
-## Getting Started
-
-### Prerequisites
+Prerequisites:
 
 - Go 1.21+
-- A PostgreSQL database (connection configured in `config.ConnectDB()`)
-
-### Run the simulator
+- PostgreSQL (connection configured in `config.ConnectDB()`)
 
 ```bash
 go run main.go
 ```
+
+The server listens on `PORT` (default `8080`) and prefixes every route with `/api/v1`.
+
+## Endpoints
+
+### `POST /api/v1/simulate`
+Start an asynchronous simulation job.
+
+Request body:
+```json
+{
+  "userId": "your-user-id",
+  "gamePk": 12345,
+  "nSims": 1000,
+  "outcomeMode": "core"
+}
+```
+Response:
+```json
+{ "jobId": "<uuid>" }
+```
+
+### `POST /api/v1/status`
+Check job status with a JSON body.
+
+Request body:
+```json
+{ "userId": "your-user-id", "jobId": "<uuid>" }
+```
+Response:
+```json
+{
+  "jobId": "<uuid>",
+  "status": "pending|running|complete|failed",
+  "currentSimulation": 500,
+  "totalSimulations": 1000,
+  "result": "optional message"
+}
+```
+
+### `GET /api/v1/status`
+Retrieve job status using query parameters. `userId` is required; `jobId` is optional. If `jobId` is omitted, the endpoint returns all jobs for the user.
+
+### `GET /api/v1/results`
+Pitch-by-pitch results for completed simulations. Supports many filters (e.g., `gamePk`, `batterid`, `pitcherid`, `velocityMin`, `exitVelocityMax`, `inning`, etc.) and returns up to 100 events per request.
+
+### `GET /api/v1/agg-core`
+Aggregated game totals. Filter by `gamePk` or `gamedate` (Pacific time) and optionally limit the number of rows.
+
+### `GET /api/v1/batter-props`
+Batter prop projections. Query parameters: `batterId`, `gamePk`, `gamedate`.
+
+### `GET /api/v1/pitcher-props`
+Pitcher prop projections. Query parameters: `pitcherId`, `gamePk`, `gamedate`.
+
 ## Contact
 
 - Twitter: [@loganbanthony](https://twitter.com/loganbanthony)
 - Website: [loganbanthony.com](https://loganbanthony.com)
 
 ## License
-Distributed under the Unlicense License. See LICENSE.txt for more information.
+
+Distributed under the Unlicense License. See LICENSE for more information.
