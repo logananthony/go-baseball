@@ -32,7 +32,7 @@ Request body:
   "userId": "your-user-id",
   "gamePk": 12345,
   "nSims": 1000,
-  "outcomeMode": "core"
+  "outcomeMode": "agg" 
 }
 ```
 Response:
