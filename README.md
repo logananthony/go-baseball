@@ -76,7 +76,6 @@ Pitcher prop projections. Query parameters: `pitcherId`, `gamePk`, `gamedate`.
 ## Contact
 
 - Twitter: [@loganbanthony](https://twitter.com/loganbanthony)
-- Website: [loganbanthony.com](https://loganbanthony.com)
 
   > ⚠️ **Note:** This project has been **decommissioned** and is no longer maintained as of August 2025.
 
